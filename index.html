@@ -1,0 +1,2733 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>版本功能修改记录</title>
+<style>
+/* === RESET & BASE === */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; overflow: hidden; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  font-size: 14px;
+  display: flex; flex-direction: column;
+  transition: background-color 0.3s, color 0.3s;
+}
+button { cursor: pointer; font-family: inherit; font-size: 13px; border: none; background: none; }
+input { font-family: inherit; font-size: 14px; }
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(128,128,128,0.3); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(128,128,128,0.5); }
+
+/* === THEME: LIGHT === */
+[data-theme="light"] { --bg: #f7f8fa; --surface: #ffffff; --border: #e2e5ea; --text: #1a1d23; --text-secondary: #6b7280; --accent: #4f6ef7; --accent-hover: #3b5de7; --toolbar-bg: #ffffff; --toolbar-border: #e2e5ea; --cell-hover: #f0f2f5; --cell-filled: #f8f9fb; --header-bg: #f0f2f5; --header-text: #374151; --btn-bg: #f0f2f5; --btn-hover: #e2e5ea; --input-bg: #ffffff; --input-border: #d1d5db; --ctx-bg: #ffffff; --ctx-hover: #f3f4f6; --ctx-border: #e5e7eb; --danger: #ef4444; --modal-bg: #ffffff; --shadow: 0 2px 8px rgba(0,0,0,0.08); }
+
+/* === THEME: DARK === */
+[data-theme="dark"] { --bg: #0f1117; --surface: #1a1d27; --border: #2a2d3a; --text: #e4e6eb; --text-secondary: #8b8fa3; --accent: #6c8cff; --accent-hover: #5a7af0; --toolbar-bg: #161821; --toolbar-border: #2a2d3a; --cell-hover: #22253a; --cell-filled: #1e2130; --header-bg: #161821; --header-text: #b0b3c0; --btn-bg: #22253a; --btn-hover: #2e3148; --input-bg: #1a1d27; --input-border: #3a3d4a; --ctx-bg: #1a1d27; --ctx-hover: #22253a; --ctx-border: #2a2d3a; --danger: #f87171; --modal-bg: #1a1d27; --shadow: 0 4px 16px rgba(0,0,0,0.4); }
+
+/* === TOOLBAR === */
+.toolbar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 16px; gap: 8px;
+  background: var(--toolbar-bg); border-bottom: 1px solid var(--toolbar-border);
+  color: var(--text); flex-shrink: 0; z-index: 10;
+}
+.toolbar-left, .toolbar-right { display: flex; align-items: center; gap: 6px; }
+.toolbar button {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 6px 12px; border-radius: 6px;
+  background: var(--btn-bg); color: var(--text);
+  transition: background 0.15s;
+}
+.toolbar button:hover { background: var(--btn-hover); }
+.toolbar button svg { flex-shrink: 0; }
+.separator { width: 1px; height: 24px; background: var(--border); margin: 0 6px; }
+.project-name {
+  font-weight: 600; font-size: 15px; color: var(--text);
+  cursor: pointer; padding: 2px 6px; border-radius: 4px;
+}
+.project-name:hover { background: var(--btn-bg); }
+.dirty-indicator { color: var(--accent); font-size: 18px; margin-left: 2px; }
+.theme-label { color: var(--text-secondary); font-size: 12px; margin-right: 4px; }
+.theme-switcher { display: flex; gap: 2px; background: var(--btn-bg); border-radius: 6px; padding: 2px; }
+.theme-btn {
+  padding: 4px 10px; border-radius: 4px; font-size: 12px;
+  color: var(--text-secondary); transition: all 0.15s;
+}
+.theme-btn:hover { color: var(--text); }
+.theme-btn.active { background: var(--accent); color: #fff; }
+
+/* === TABLE === */
+.main-content { flex: 1; display: flex; flex-direction: column; overflow: hidden; background: var(--bg); }
+.table-actions { padding: 12px 16px 0; display: flex; gap: 8px; flex-shrink: 0; }
+.action-btn {
+  padding: 6px 14px; border-radius: 6px; font-size: 13px; font-weight: 500;
+  background: var(--btn-bg); color: var(--accent); border: 1px dashed var(--accent);
+  transition: all 0.15s;
+}
+.action-btn:hover { background: var(--accent); color: #fff; border-style: solid; }
+.sort-btn.active { background: var(--accent); color: #fff; border-style: solid; }
+.table-wrapper { flex: 1; overflow: auto; padding: 12px 16px 16px; }
+table { border-collapse: separate; border-spacing: 0; width: max-content; min-width: 100%; }
+th, td {
+  border: 1px solid var(--border); padding: 0; position: relative;
+  transition: background 0.1s;
+}
+th {
+  background: var(--header-bg); color: var(--header-text);
+  font-weight: 600; font-size: 13px; white-space: nowrap;
+  position: sticky; z-index: 2; user-select: none;
+}
+thead th { top: 0; padding: 10px 14px; min-width: 160px; }
+thead th:first-child { position: sticky; left: 0; z-index: 3; min-width: 140px; background: var(--header-bg); }
+tbody th {
+  position: sticky; left: 0; z-index: 1;
+  padding: 10px 14px; min-width: 140px;
+  background: var(--header-bg); text-align: left; vertical-align: top;
+  cursor: context-menu;
+}
+td {
+  background: var(--surface); min-width: 180px; max-width: 400px;
+  vertical-align: top; cursor: pointer;
+}
+td:hover { background: var(--cell-hover); }
+td.has-content { background: var(--cell-filled); }
+td.data-cell.selected-cell {
+  box-shadow: inset 0 0 0 2px var(--accent);
+  z-index: 1;
+}
+.corner-cell { background: var(--header-bg); cursor: default; }
+.version-header, .module-header { cursor: pointer; }
+.version-header:hover, .module-header:hover, tbody th:hover { filter: brightness(0.96); }
+.module-header-text { display: inline-flex; align-items: center; gap: 4px; }
+.module-header-parent .module-header-text {
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+.module-header-child .module-header-text {
+  font-size: 12px;
+  font-weight: 500;
+  opacity: 0.82;
+}
+/* Cell tag background tints */
+td.data-cell { position: relative; overflow: hidden; }
+td.tag-red { background: rgba(239,68,68,0.08); }
+td.tag-green { background: rgba(34,197,94,0.08); }
+td.tag-blue { background: rgba(59,130,246,0.08); }
+td.tag-yellow { background: rgba(234,179,8,0.10); }
+[data-theme="dark"] td.tag-red { background: rgba(239,68,68,0.12); }
+[data-theme="dark"] td.tag-green { background: rgba(34,197,94,0.12); }
+[data-theme="dark"] td.tag-blue { background: rgba(59,130,246,0.12); }
+[data-theme="dark"] td.tag-yellow { background: rgba(234,179,8,0.14); }
+/* Collapse indicator */
+.collapse-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 16px; height: 16px; border-radius: 3px; font-size: 10px;
+  color: var(--text-secondary); background: var(--btn-bg); margin-right: 4px;
+  cursor: pointer; vertical-align: middle; transition: all 0.15s; border: none;
+}
+.collapse-btn:hover { background: var(--btn-hover); color: var(--text); }
+
+/* === CELL EDITING === */
+.cell-content {
+  padding: 8px 12px; min-height: 38px; white-space: normal;
+  max-width: 100%; overflow: hidden; overflow-wrap: anywhere;
+  word-break: break-word; font-size: 13px; color: var(--text); line-height: 1.5;
+}
+.cell-content img { max-width: 100%; height: auto; border-radius: 4px; margin: 4px 0; display: block; }
+.cell-content table { border-collapse: collapse; width: 100%; margin: 4px 0; font-size: 12px; }
+.cell-content table th, .cell-content table td {
+  border: 1px solid var(--border); padding: 4px 8px; text-align: left; min-width: 40px;
+}
+.cell-content table th { background: var(--header-bg); font-weight: 600; }
+.cell-content ul, .cell-content ol { padding-left: 18px; margin: 2px 0; }
+.cell-content li { margin: 1px 0; }
+.cell-content a, .detail-card-content a {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  word-break: break-all;
+}
+.cell-content a:hover, .detail-card-content a:hover { color: var(--accent-hover); }
+.cell-editing { position: relative; }
+.cell-editor-wrap { position: relative; }
+.cell-editor {
+  width: 100%; min-height: 80px; padding: 8px 12px; padding-top: 36px;
+  border: 2px solid var(--accent); border-radius: 0;
+  background: var(--surface); color: var(--text);
+  font-family: inherit; font-size: 13px; line-height: 1.5;
+  outline: none; overflow-y: auto; white-space: normal; word-break: break-word;
+}
+.cell-editor:focus { box-shadow: 0 0 0 3px rgba(79,110,247,0.15); }
+.cell-editor img { max-width: 100%; height: auto; border-radius: 4px; margin: 4px 0; display: block; }
+.cell-editor-wrap.resizing { user-select: none; }
+.cell-editor img.is-resizable-selected,
+.cell-editor table.is-resizable-selected {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.image-resize-handle {
+  position: absolute; z-index: 9; display: none;
+  width: 14px; height: 14px; border-radius: 999px;
+  background: var(--accent); border: 2px solid #fff;
+  box-shadow: var(--shadow); cursor: nwse-resize;
+  transform: translate(-50%, -50%);
+}
+.image-resize-handle.show { display: block; }
+[data-theme="dark"] .image-resize-handle { border-color: var(--surface); }
+.cell-editor table { border-collapse: collapse; width: 100%; margin: 4px 0; font-size: 12px; }
+.cell-editor table th, .cell-editor table td {
+  border: 1px solid var(--border); padding: 4px 8px; text-align: left; min-width: 40px;
+}
+.cell-editor table th { background: var(--header-bg); font-weight: 600; }
+.cell-editor ul, .cell-editor ol { padding-left: 18px; margin: 2px 0; }
+.cell-editor li { margin: 1px 0; }
+
+/* Mini toolbar */
+.cell-mini-toolbar {
+  position: absolute; top: 0; left: 0; right: 0; z-index: 5;
+  display: flex; align-items: center; gap: 1px;
+  padding: 3px 4px; background: var(--header-bg);
+  border-bottom: 1px solid var(--border);
+}
+.cell-mini-toolbar button {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 26px; height: 26px; border-radius: 4px; padding: 0;
+  color: var(--text-secondary); background: transparent;
+  font-size: 13px; font-weight: 600; transition: all 0.1s;
+}
+.cell-mini-toolbar button:hover { background: var(--btn-hover); color: var(--text); }
+.cell-mini-toolbar button.active { background: var(--accent); color: #fff; }
+.cell-mini-toolbar .tb-sep { width: 1px; height: 18px; background: var(--border); margin: 0 3px; }
+/* Tag selector in toolbar */
+.tag-select-wrap { position: relative; display: flex; align-items: center; justify-content: flex-start; }
+.tag-select-btn {
+  display: inline-flex; align-items: center; gap: 3px;
+  height: 26px; padding: 0 8px; border-radius: 4px; font-size: 11px; font-weight: 500;
+  color: var(--text-secondary); background: transparent; cursor: pointer; white-space: nowrap;
+  border: none; transition: all 0.1s;
+  width: auto; justify-content: flex-start; flex-shrink: 0; text-align: left;
+  writing-mode: horizontal-tb; text-orientation: mixed;
+}
+.tag-select-btn:hover { background: var(--btn-hover); color: var(--text); }
+.tag-select-btn .tag-dot-sm { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; }
+.tag-dropdown {
+  display: none; position: absolute; top: 100%; left: 0; z-index: 20;
+  background: var(--ctx-bg); border: 1px solid var(--ctx-border);
+  border-radius: 8px; padding: 4px; box-shadow: var(--shadow); min-width: 100px;
+  text-align: left;
+}
+.tag-dropdown.show { display: flex; flex-direction: column; }
+.tag-dropdown-item {
+  display: grid; grid-template-columns: 10px 1fr; align-items: center; column-gap: 6px;
+  padding: 5px 10px; border-radius: 4px; font-size: 12px;
+  color: var(--text); cursor: pointer; width: 100%; text-align: left;
+  transition: background 0.1s; border: none; background: none;
+  min-height: 26px; justify-content: flex-start; justify-items: start; white-space: nowrap;
+  writing-mode: horizontal-tb; text-orientation: mixed;
+}
+.tag-dropdown-item:hover { background: var(--ctx-hover); }
+.tag-dropdown-sep { height: 1px; background: var(--ctx-border); margin: 3px 4px; }
+.tag-dot { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
+.tag-dot-placeholder { width: 10px; height: 10px; }
+.tag-dropdown-text { display: block; width: 100%; text-align: left; line-height: 1.35; }
+
+/* Color picker dropdown */
+.color-picker-wrap { position: relative; }
+.color-picker-btn { position: relative; }
+.color-picker-btn .color-indicator {
+  position: absolute; bottom: 2px; left: 4px; right: 4px; height: 3px;
+  border-radius: 1px; background: #ef4444;
+}
+.color-palette {
+  display: none; position: absolute; top: 100%; left: 0; z-index: 10;
+  background: var(--ctx-bg); border: 1px solid var(--ctx-border);
+  border-radius: 8px; padding: 8px; box-shadow: var(--shadow);
+  width: 176px;
+}
+.color-palette.show { display: block; }
+.color-palette-label { font-size: 11px; color: var(--text-secondary); margin-bottom: 4px; }
+.color-palette-grid { display: grid; grid-template-columns: repeat(8, 1fr); gap: 3px; }
+.color-swatch {
+  width: 18px; height: 18px; border-radius: 3px; border: 1px solid var(--border);
+  cursor: pointer; padding: 0; transition: transform 0.1s;
+}
+.color-swatch:hover { transform: scale(1.2); z-index: 1; border-color: var(--text); }
+.color-palette-actions { margin-top: 6px; display: flex; gap: 4px; }
+.color-palette-actions button {
+  flex: 1; font-size: 11px; padding: 3px 6px; border-radius: 4px;
+  background: var(--btn-bg); color: var(--text-secondary); width: auto; height: auto;
+}
+.color-palette-actions button:hover { background: var(--btn-hover); color: var(--text); }
+
+/* === CONTEXT MENU === */
+.context-menu {
+  position: fixed; z-index: 1000;
+  background: var(--ctx-bg); border: 1px solid var(--ctx-border);
+  border-radius: 8px; padding: 4px; min-width: 160px;
+  box-shadow: var(--shadow);
+}
+.context-menu-item {
+  display: flex; align-items: center; gap: 8px;
+  padding: 7px 12px; border-radius: 4px; font-size: 13px;
+  color: var(--text); cursor: pointer; width: 100%; text-align: left;
+  transition: background 0.1s;
+}
+.context-menu-item:hover { background: var(--ctx-hover); }
+.context-menu-item.danger { color: var(--danger); }
+.context-menu-item.danger:hover { background: rgba(239,68,68,0.08); }
+.context-menu-sep { height: 1px; background: var(--ctx-border); margin: 4px 8px; }
+
+/* === MODAL === */
+.modal-overlay {
+  position: fixed; inset: 0; z-index: 2000;
+  background: rgba(0,0,0,0.35); display: flex;
+  align-items: center; justify-content: center;
+}
+.modal {
+  background: var(--modal-bg); border-radius: 12px;
+  padding: 24px; min-width: 340px; box-shadow: var(--shadow);
+}
+.modal-title { font-size: 16px; font-weight: 600; color: var(--text); margin-bottom: 16px; }
+.modal-input {
+  width: 100%; padding: 8px 12px; border-radius: 6px;
+  border: 1px solid var(--input-border); background: var(--input-bg);
+  color: var(--text); outline: none; margin-bottom: 16px;
+}
+.modal-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(79,110,247,0.12); }
+.modal-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.modal-btn {
+  padding: 6px 16px; border-radius: 6px; font-size: 13px; font-weight: 500;
+  transition: all 0.15s;
+}
+.modal-btn.cancel { background: var(--btn-bg); color: var(--text); }
+.modal-btn.cancel:hover { background: var(--btn-hover); }
+.modal-btn.confirm { background: var(--accent); color: #fff; }
+.modal-btn.confirm:hover { background: var(--accent-hover); }
+
+/* === CELL EDIT DIALOG === */
+.cell-edit-overlay {
+  position: fixed; inset: 0; z-index: 1900;
+  background: rgba(0,0,0,0.42); display: flex;
+  align-items: center; justify-content: center;
+  padding: 24px;
+}
+.cell-edit-dialog {
+  width: min(960px, calc(100vw - 48px));
+  max-height: min(760px, calc(100vh - 48px));
+  background: var(--modal-bg); border-radius: 16px;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.22);
+  display: flex; flex-direction: column; overflow: hidden;
+}
+.cell-edit-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 18px 22px; border-bottom: 1px solid var(--border);
+  gap: 16px;
+}
+.cell-edit-title-row { display: flex; align-items: center; gap: 12px; }
+.cell-edit-title { font-size: 17px; font-weight: 700; color: var(--text); }
+.cell-edit-subtitle { font-size: 12px; color: var(--text-secondary); margin-top: 4px; }
+.cell-edit-tag-slot { display: flex; align-items: center; }
+.cell-edit-tag-slot .tag-select-btn {
+  height: 30px; padding: 0 10px; font-size: 12px;
+  border: 1px solid var(--border); background: var(--surface);
+}
+.cell-edit-tag-slot .tag-select-btn:hover { background: var(--btn-hover); }
+.cell-edit-tag-slot .tag-dropdown { top: calc(100% + 6px); min-width: 132px; }
+.cell-edit-body {
+  flex: 1; overflow: auto; padding: 20px 22px;
+  background: var(--bg);
+}
+.cell-edit-body .cell-editor-wrap {
+  min-height: 420px;
+}
+.cell-edit-body .cell-editor {
+  min-height: 420px;
+  border-radius: 0 0 12px 12px;
+}
+.cell-edit-footer {
+  display: flex; justify-content: flex-end; gap: 10px;
+  padding: 16px 22px 22px; border-top: 1px solid var(--border);
+  background: var(--modal-bg);
+}
+
+/* === EMPTY STATE === */
+.empty-state {
+  display: flex; flex-direction: column; align-items: center;
+  justify-content: center; height: 300px; color: var(--text-secondary);
+}
+.empty-state p:first-child { font-size: 18px; margin-bottom: 8px; }
+.empty-state p:last-child { font-size: 13px; }
+
+/* === DETAIL PANEL === */
+.detail-overlay {
+  position: fixed; inset: 0; z-index: 1500;
+  background: rgba(0,0,0,0.4);
+  display: flex; align-items: center; justify-content: center;
+  animation: fadeIn 0.15s ease;
+}
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+.detail-panel {
+  background: var(--modal-bg); border-radius: 14px;
+  width: 85vw; max-width: 900px; max-height: 85vh;
+  display: flex; flex-direction: column;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+  animation: slideUp 0.2s ease;
+}
+@keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.detail-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 18px 24px; border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.detail-title { font-size: 18px; font-weight: 700; color: var(--text); }
+.detail-subtitle { font-size: 13px; color: var(--text-secondary); margin-left: 10px; font-weight: 400; }
+.detail-close {
+  width: 32px; height: 32px; border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--btn-bg); color: var(--text-secondary);
+  font-size: 18px; cursor: pointer; transition: all 0.15s;
+  border: none;
+}
+.detail-close:hover { background: var(--btn-hover); color: var(--text); }
+.detail-body { flex: 1; overflow-y: auto; padding: 20px 24px; }
+.detail-section { margin-bottom: 20px; }
+.detail-section-title {
+  font-size: 14px; font-weight: 600; color: var(--text-secondary);
+  margin-bottom: 10px; padding-bottom: 6px;
+  border-bottom: 1px solid var(--border);
+}
+.detail-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 10px; padding: 14px 18px; margin-bottom: 10px;
+  transition: background 0.1s;
+}
+.detail-card:hover { background: var(--cell-hover); }
+.detail-card-header { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.detail-card-name { font-size: 14px; font-weight: 600; color: var(--text); }
+.detail-card-tag {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 11px; padding: 2px 8px; border-radius: 10px;
+  color: #fff; font-weight: 500;
+}
+.detail-card-tag.tag-red { background: #ef4444; }
+.detail-card-tag.tag-green { background: #22c55e; }
+.detail-card-tag.tag-blue { background: #3b82f6; }
+.detail-card-tag.tag-yellow { background: #eab308; color: #1a1d23; }
+.detail-card-content {
+  font-size: 13px; color: var(--text); line-height: 1.6; word-break: break-word;
+}
+.detail-card-content img { max-width: 100%; height: auto; border-radius: 4px; margin: 4px 0; display: block; }
+.detail-card-content table { border-collapse: collapse; width: 100%; margin: 4px 0; font-size: 12px; }
+.detail-card-content table th, .detail-card-content table td {
+  border: 1px solid var(--border); padding: 4px 8px; text-align: left; min-width: 40px;
+}
+.detail-card-content table th { background: var(--header-bg); font-weight: 600; }
+.detail-card-content ul, .detail-card-content ol { padding-left: 18px; margin: 2px 0; }
+.detail-card-content li { margin: 1px 0; }
+.detail-card-empty { font-size: 13px; color: var(--text-secondary); font-style: italic; }
+.detail-card-inherited { font-size: 11px; color: var(--text-secondary); margin-bottom: 4px; font-style: italic; }
+.detail-card-reason { font-size: 13px; color: var(--text-secondary); }
+.detail-card.child-card { margin-left: 24px; border-left: 3px solid var(--accent); }
+.detail-card-parent-label { font-size: 11px; color: var(--text-secondary); margin-bottom: 4px; }
+.detail-header-actions { display: flex; align-items: center; gap: 8px; }
+.detail-export-btn {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 6px 14px; border-radius: 8px; font-size: 13px; font-weight: 500;
+  background: var(--accent); color: #fff; border: none;
+  cursor: pointer; transition: all 0.15s; white-space: nowrap;
+}
+.detail-export-btn:hover { background: var(--accent-hover); }
+.detail-export-btn svg { flex-shrink: 0; }
+
+/* === TOAST === */
+.copy-toast {
+  position: fixed; bottom: 32px; left: 50%; transform: translateX(-50%);
+  background: var(--text); color: var(--bg); padding: 10px 24px;
+  border-radius: 8px; font-size: 13px; font-weight: 500; z-index: 3000;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+  animation: toastIn 0.25s ease, toastOut 0.3s ease 1.5s forwards;
+  pointer-events: none;
+}
+@keyframes toastIn { from { opacity: 0; transform: translateX(-50%) translateY(12px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
+@keyframes toastOut { from { opacity: 1; } to { opacity: 0; } }
+</style>
+</head>
+<body data-theme="light">
+<!-- Toolbar -->
+<div class="toolbar">
+  <div class="toolbar-left">
+    <button onclick="newProject()" title="新建项目"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 2h6l4 4v8a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1z"/><path d="M9 2v4h4"/></svg>新建</button>
+    <button onclick="openFile()" title="打开文件"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 4h3l2 2h5a1 1 0 0 1 1 1v5a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z"/></svg>打开</button>
+    <button onclick="saveFile()" title="保存"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 2h9l3 3v9H2z"/><path d="M5 2v4h5V2"/><path d="M5 10h6v4H5z"/></svg>保存</button>
+    <button onclick="saveFileAs()" title="另存为"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 2h9l3 3v9H2z"/><path d="M5 2v4h5V2"/><path d="M5 10h6v4H5z"/></svg>另存为</button>
+    <div class="separator"></div>
+    <span class="project-name" onclick="renameProject()" id="projectName">未命名项目</span>
+    <span class="dirty-indicator" id="dirtyDot" style="display:none;">●</span>
+  </div>
+  <div class="toolbar-right">
+    <span class="theme-label">主题</span>
+    <div class="theme-switcher">
+      <button class="theme-btn active" data-theme="light" onclick="setTheme('light')">白天</button>
+      <button class="theme-btn" data-theme="dark" onclick="setTheme('dark')">黑夜</button>
+      <button class="theme-btn" data-theme="auto" onclick="setTheme('auto')">跟随系统</button>
+    </div>
+  </div>
+</div>
+
+<!-- Main Content -->
+<div class="main-content">
+  <div class="table-actions">
+    <button class="action-btn" onclick="addVersion()">+ 添加版本</button>
+    <button class="action-btn" onclick="addModule()">+ 添加功能</button>
+    <button class="action-btn sort-btn" id="versionSortAscBtn" onclick="setVersionSort('asc')">版本正序</button>
+    <button class="action-btn sort-btn" id="versionSortDescBtn" onclick="setVersionSort('desc')">版本倒序</button>
+  </div>
+  <div class="table-wrapper" id="tableWrapper">
+    <div class="empty-state" id="emptyState">
+      <p>暂无数据</p>
+      <p>点击上方按钮添加版本和功能模块</p>
+    </div>
+    <table id="mainTable" style="display:none;"></table>
+  </div>
+</div>
+
+<!-- Context Menu -->
+<div class="context-menu" id="contextMenu" style="display:none;"></div>
+
+<!-- Modal -->
+<div class="modal-overlay" id="modalOverlay" style="display:none;">
+  <div class="modal">
+    <div class="modal-title" id="modalTitle"></div>
+    <input class="modal-input" id="modalInput" autocomplete="off">
+    <div class="modal-actions">
+      <button class="modal-btn cancel" onclick="closeModal()">取消</button>
+      <button class="modal-btn confirm" id="modalConfirm" onclick="confirmModal()">确定</button>
+    </div>
+  </div>
+</div>
+
+<!-- Detail Panel -->
+<div class="detail-overlay" id="detailOverlay" style="display:none;">
+  <div class="detail-panel">
+    <div class="detail-header">
+      <div><span class="detail-title" id="detailTitle"></span><span class="detail-subtitle" id="detailSubtitle"></span></div>
+      <div class="detail-header-actions">
+        <button class="detail-export-btn" onclick="exportDetail()"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7V12H11V7"/><path d="M7 1v8"/><path d="M4 4l3-3 3 3"/></svg>导出</button>
+        <button class="detail-close" onclick="closeDetail()">✕</button>
+      </div>
+    </div>
+    <div class="detail-body" id="detailBody"></div>
+  </div>
+</div>
+
+<!-- Cell Edit Dialog -->
+<div class="cell-edit-overlay" id="cellEditOverlay" style="display:none;">
+  <div class="cell-edit-dialog">
+    <div class="cell-edit-header">
+      <div>
+        <div class="cell-edit-title-row">
+          <div class="cell-edit-title" id="cellEditTitle"></div>
+          <div class="cell-edit-tag-slot" id="cellEditTagSlot"></div>
+        </div>
+        <div class="cell-edit-subtitle" id="cellEditSubtitle"></div>
+      </div>
+      <button class="detail-close" onclick="cancelCellEdit()">×</button>
+    </div>
+    <div class="cell-edit-body" id="cellEditBody"></div>
+    <div class="cell-edit-footer">
+      <button class="modal-btn cancel" onclick="cancelCellEdit()">取消</button>
+      <button class="modal-btn confirm" onclick="saveCellEdit()">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- Hidden file input -->
+<input type="file" id="fileInput" accept=".json" style="display:none;" onchange="handleFileOpen(event)">
+<script>
+// ==================== DATA MODEL ====================
+const TAG_COLORS = { red:'#ef4444', green:'#22c55e', blue:'#3b82f6', yellow:'#eab308' };
+const TAG_LABELS = { red:'删除', green:'添加', blue:'未修改', yellow:'改动' };
+
+const App = {
+  projectName: '未命名项目',
+  versions: [],
+  modules: [],
+  cells: {},
+  tags: {},
+  moduleParents: {},
+  moduleStyles: {},
+  versionStyles: {},
+  collapsedModules: new Set(),
+  theme: 'light',
+  versionSort: 'asc',
+  dirty: false,
+  fileHandle: null,
+  projectDirHandle: null,
+  assetDirName: '',
+  assetObjectUrls: [],
+  selectedCell: null,
+  cellClipboard: null,
+  editingCell: null,
+  editingDraft: '',
+  editingTag: '',
+  editingTagTouched: false,
+};
+
+let modalCallback = null;
+let savedSelection = null;
+let activeResizableElement = null;
+let resizeSession = null;
+const HANDLE_DB_NAME = 'version-tracker-handles';
+const HANDLE_STORE_NAME = 'handles';
+const LAST_OPEN_HANDLE_KEY = 'last-open-handle';
+const LAST_PROJECT_DIR_HANDLE_KEY = 'last-project-dir-handle';
+
+function openHandleDB() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(HANDLE_DB_NAME, 1);
+    req.onupgradeneeded = () => {
+      const db = req.result;
+      if (!db.objectStoreNames.contains(HANDLE_STORE_NAME)) db.createObjectStore(HANDLE_STORE_NAME);
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function savePersistedHandle(key, handle) {
+  if (!window.indexedDB || !handle) return;
+  try {
+    const db = await openHandleDB();
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction(HANDLE_STORE_NAME, 'readwrite');
+      tx.objectStore(HANDLE_STORE_NAME).put(handle, key);
+      tx.oncomplete = resolve;
+      tx.onerror = () => reject(tx.error);
+      tx.onabort = () => reject(tx.error);
+    });
+    db.close();
+  } catch (e) {}
+}
+
+async function loadPersistedHandle(key) {
+  if (!window.indexedDB) return null;
+  try {
+    const db = await openHandleDB();
+    const handle = await new Promise((resolve, reject) => {
+      const tx = db.transaction(HANDLE_STORE_NAME, 'readonly');
+      const req = tx.objectStore(HANDLE_STORE_NAME).get(key);
+      req.onsuccess = () => resolve(req.result || null);
+      req.onerror = () => reject(req.error);
+    });
+    db.close();
+    return handle;
+  } catch (e) {
+    return null;
+  }
+}
+async function hasFileReadPermission(handle) {
+  if (!handle?.queryPermission) return true;
+  try {
+    return (await handle.queryPermission({ mode: 'read' })) === 'granted';
+  } catch (e) {
+    return false;
+  }
+}
+
+function shouldRetryPickerWithoutHandle(error) {
+  return error && ['TypeError', 'DataCloneError', 'NotFoundError', 'SecurityError'].includes(error.name);
+}
+
+function revokeAssetObjectUrls() {
+  App.assetObjectUrls.forEach(url => URL.revokeObjectURL(url));
+  App.assetObjectUrls = [];
+}
+
+function trackAssetObjectUrl(url) {
+  App.assetObjectUrls.push(url);
+  return url;
+}
+
+function sanitizeFileName(name) {
+  return (name || 'item').replace(/[<>:"/\\|?*\x00-\x1f]/g, '_').replace(/\s+/g, '_').replace(/_+/g, '_').replace(/^_+|_+$/g, '').slice(0, 80) || 'item';
+}
+
+function getVersionDisplayOrder() {
+  const order = App.versions.map((_, i) => i);
+  return App.versionSort === 'desc' ? order.reverse() : order;
+}
+
+function setVersionSort(sort) {
+  if (!['asc', 'desc'].includes(sort) || App.versionSort === sort) return;
+  App.versionSort = sort;
+  markDirty();
+  render();
+}
+
+function updateVersionSortButtons() {
+  document.getElementById('versionSortAscBtn')?.classList.toggle('active', App.versionSort === 'asc');
+  document.getElementById('versionSortDescBtn')?.classList.toggle('active', App.versionSort === 'desc');
+}
+
+function normalizeContentHTML(html) {
+  const temp = document.createElement('div');
+  temp.innerHTML = html || '';
+  temp.querySelectorAll('script,style,meta,link').forEach(el => el.remove());
+  temp.querySelectorAll('a[href]').forEach(a => {
+    a.setAttribute('target', '_blank');
+    a.setAttribute('rel', 'noopener noreferrer');
+  });
+  return temp.innerHTML;
+}
+function trimLinkTrailingPunctuation(url) {
+  let trailing = '';
+  while (/[),.;!?]$/.test(url)) {
+    trailing = url.slice(-1) + trailing;
+    url = url.slice(0, -1);
+  }
+  return { url, trailing };
+}
+function createLinkifiedFragment(text) {
+  const regex = /((?:https?:\/\/|www\.)[^\s<]+)/gi;
+  let lastIndex = 0;
+  let match = null;
+  let found = false;
+  const fragment = document.createDocumentFragment();
+  while ((match = regex.exec(text))) {
+    found = true;
+    const raw = match[0];
+    const { url, trailing } = trimLinkTrailingPunctuation(raw);
+    fragment.appendChild(document.createTextNode(text.slice(lastIndex, match.index)));
+    const link = document.createElement('a');
+    link.href = /^www\./i.test(url) ? `https://${url}` : url;
+    link.textContent = url;
+    link.target = '_blank';
+    link.rel = 'noopener noreferrer';
+    fragment.appendChild(link);
+    if (trailing) fragment.appendChild(document.createTextNode(trailing));
+    lastIndex = match.index + raw.length;
+  }
+  if (!found) return null;
+  fragment.appendChild(document.createTextNode(text.slice(lastIndex)));
+  return fragment;
+}
+function linkifyExternalLinks(node) {
+  if (!node) return;
+  if (node.nodeType === Node.TEXT_NODE) {
+    const fragment = createLinkifiedFragment(node.nodeValue || '');
+    if (fragment && node.parentNode) node.parentNode.replaceChild(fragment, node);
+    return;
+  }
+  if (node.nodeType !== Node.ELEMENT_NODE) return;
+  if (['A', 'SCRIPT', 'STYLE', 'TEXTAREA'].includes(node.tagName)) return;
+  [...node.childNodes].forEach(child => linkifyExternalLinks(child));
+}
+function renderDisplayContentHTML(html) {
+  const temp = document.createElement('div');
+  temp.innerHTML = normalizeContentHTML(html);
+  linkifyExternalLinks(temp);
+  temp.querySelectorAll('a[href]').forEach(a => {
+    a.setAttribute('target', '_blank');
+    a.setAttribute('rel', 'noopener noreferrer');
+  });
+  return temp.innerHTML;
+}
+
+function getAssetDirName() {
+  if (App.assetDirName) return App.assetDirName;
+  const baseName = (App.fileHandle?.name || (App.projectName + '.json')).replace(/\.json$/i, '');
+  App.assetDirName = sanitizeFileName(baseName) + '_assets';
+  return App.assetDirName;
+}
+
+async function ensureProjectDirHandle(promptUser) {
+  if (App.projectDirHandle) return App.projectDirHandle;
+  const persisted = await loadPersistedHandle(LAST_PROJECT_DIR_HANDLE_KEY);
+  if (persisted && !(promptUser && App.fileHandle)) {
+    App.projectDirHandle = persisted;
+    return persisted;
+  }
+  if (!promptUser || !window.showDirectoryPicker) return null;
+  try {
+    const pickerOptions = persisted ? { startIn: persisted } : undefined;
+    const dirHandle = pickerOptions ? await window.showDirectoryPicker(pickerOptions) : await window.showDirectoryPicker();
+    App.projectDirHandle = dirHandle;
+    await savePersistedHandle(LAST_PROJECT_DIR_HANDLE_KEY, dirHandle);
+    return dirHandle;
+  } catch (e) {
+    return null;
+  }
+}
+
+async function getAssetDirHandle(create) {
+  const rootDir = await ensureProjectDirHandle(create);
+  if (!rootDir) return null;
+  try {
+    const dirHandle = await rootDir.getDirectoryHandle(getAssetDirName(), { create });
+    App.projectDirHandle = rootDir;
+    return dirHandle;
+  } catch (e) {
+    return null;
+  }
+}
+
+async function readAssetBlob(relativePath, retryWithPrompt = false) {
+  if (!relativePath) return null;
+  const segments = relativePath.split('/').filter(Boolean);
+  if (!segments.length) return null;
+  let rootDir = await ensureProjectDirHandle(false);
+  const tryRead = async (dirHandle) => {
+    let current = dirHandle;
+    for (let i = 0; i < segments.length - 1; i++) {
+      current = await current.getDirectoryHandle(segments[i]);
+    }
+    const fileHandle = await current.getFileHandle(segments[segments.length - 1]);
+    return fileHandle.getFile();
+  };
+  try {
+    if (!rootDir) throw new Error('missing-dir');
+    return await tryRead(rootDir);
+  } catch (e) {
+    if (!retryWithPrompt) return null;
+    App.projectDirHandle = null;
+    rootDir = await ensureProjectDirHandle(true);
+    if (!rootDir) return null;
+    try {
+      return await tryRead(rootDir);
+    } catch (err) {
+      return null;
+    }
+  }
+}
+
+function getImageExtension(blob, src, fallbackPath) {
+  const mimeMap = {
+    'image/png': 'png',
+    'image/jpeg': 'jpg',
+    'image/gif': 'gif',
+    'image/webp': 'webp',
+    'image/svg+xml': 'svg',
+    'image/bmp': 'bmp',
+  };
+  if (blob?.type && mimeMap[blob.type]) return mimeMap[blob.type];
+  const source = fallbackPath || src || '';
+  const match = source.match(/\.([a-zA-Z0-9]+)(?:$|\?)/);
+  return match ? match[1].toLowerCase() : 'png';
+}
+
+async function writeBlobToHandle(fileHandle, blob) {
+  const writable = await fileHandle.createWritable();
+  await writable.write(blob);
+  await writable.close();
+}
+
+async function persistImagesForCell(html, key) {
+  const normalized = normalizeContentHTML(html);
+  const temp = document.createElement('div');
+  temp.innerHTML = normalized;
+  const images = [...temp.querySelectorAll('img')];
+  if (!images.length) return normalized;
+  const assetDirHandle = await getAssetDirHandle(true);
+  if (!assetDirHandle) {
+    images.forEach(img => {
+      const relativePath = img.getAttribute('data-image-path');
+      if (relativePath) img.setAttribute('src', relativePath);
+    });
+    return temp.innerHTML;
+  }
+  const sep = key.indexOf('|');
+  const moduleName = sanitizeFileName(sep >= 0 ? key.substring(0, sep) : 'module');
+  const versionName = sanitizeFileName(sep >= 0 ? key.substring(sep + 1) : 'version');
+  let index = 1;
+  for (const img of images) {
+    const currentSrc = img.getAttribute('src') || '';
+    const currentPath = img.getAttribute('data-image-path') || currentSrc;
+    let blob = null;
+    if (currentSrc.startsWith('data:') || currentSrc.startsWith('blob:')) {
+      blob = await fetch(currentSrc).then(r => r.blob()).catch(() => null);
+    }
+    if (!blob && currentPath && !/^https?:/i.test(currentPath)) {
+      blob = await readAssetBlob(currentPath);
+    }
+    if (!blob) continue;
+    const ext = getImageExtension(blob, currentSrc, currentPath);
+    const fileName = `${versionName}__${moduleName}__${index}.${ext}`;
+    const fileHandle = await assetDirHandle.getFileHandle(fileName, { create: true });
+    await writeBlobToHandle(fileHandle, blob);
+    const relativePath = `${getAssetDirName()}/${fileName}`;
+    img.setAttribute('src', relativePath);
+    img.setAttribute('data-image-path', relativePath);
+    index++;
+  }
+  return temp.innerHTML;
+}
+
+async function hydrateImagesForCell(html) {
+  const normalized = normalizeContentHTML(html);
+  const temp = document.createElement('div');
+  temp.innerHTML = normalized;
+  const images = [...temp.querySelectorAll('img')];
+  if (!images.length) return normalized;
+  for (const img of images) {
+    const relativePath = img.getAttribute('data-image-path') || img.getAttribute('src') || '';
+    if (!relativePath || /^https?:/i.test(relativePath) || relativePath.startsWith('data:') || relativePath.startsWith('blob:')) continue;
+    const file = await readAssetBlob(relativePath, true);
+    if (!file) continue;
+    const objectUrl = trackAssetObjectUrl(URL.createObjectURL(file));
+    img.setAttribute('src', objectUrl);
+    img.setAttribute('data-image-path', relativePath);
+  }
+  return temp.innerHTML;
+}
+
+async function prepareDataForSave() {
+  const data = toJSON();
+  const cellEntries = Object.entries(data.cells || {});
+  for (const [key, value] of cellEntries) {
+    data.cells[key] = await persistImagesForCell(value, key);
+  }
+  return data;
+}
+
+async function hydrateLoadedCells() {
+  const entries = Object.entries(App.cells);
+  for (const [key, value] of entries) {
+    App.cells[key] = await hydrateImagesForCell(value);
+  }
+}
+
+// ==================== THEME ====================
+function getSystemTheme() {
+  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+}
+function applyTheme() {
+  const effective = App.theme === 'auto' ? getSystemTheme() : App.theme;
+  document.body.setAttribute('data-theme', effective);
+  document.querySelectorAll('.theme-btn').forEach(b => {
+    b.classList.toggle('active', b.getAttribute('data-theme') === App.theme);
+  });
+}
+function setTheme(t) {
+  App.theme = t;
+  applyTheme();
+  markDirty();
+}
+window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+  if (App.theme === 'auto') applyTheme();
+});
+
+// ==================== DIRTY STATE ====================
+function markDirty() {
+  App.dirty = true;
+  document.getElementById('dirtyDot').style.display = '';
+  document.title = '● ' + App.projectName + ' - 版本功能修改记录';
+}
+function clearDirty() {
+  App.dirty = false;
+  document.getElementById('dirtyDot').style.display = 'none';
+  document.title = App.projectName + ' - 版本功能修改记录';
+}
+
+// ==================== HIERARCHY ====================
+function getChildren(parentIdx) {
+  const children = [];
+  for (const [child, parent] of Object.entries(App.moduleParents)) {
+    if (parseInt(parent) === parentIdx) children.push(parseInt(child));
+  }
+  return children.sort((a, b) => {
+    const ai = App.modules.indexOf(App.modules[a]);
+    const bi = App.modules.indexOf(App.modules[b]);
+    return ai - bi;
+  });
+}
+function getModuleDisplayOrder() {
+  const order = [];
+  const childSet = new Set(Object.keys(App.moduleParents).map(Number));
+  App.modules.forEach((m, i) => {
+    if (childSet.has(i)) return;
+    order.push(i);
+    if (!App.collapsedModules.has(i)) {
+      const kids = getChildren(i);
+      kids.forEach(k => order.push(k));
+    }
+  });
+  return order;
+}
+function isModuleActiveBeforeVersion(mi, beforeVi) {
+  let isActive = true;
+  for (let vi = 0; vi < beforeVi; vi++) {
+    const tag = App.tags[mi + '|' + vi] || '';
+    if (tag === 'red') {
+      isActive = false;
+      continue;
+    }
+    if (tag === 'green' || tag === 'blue' || tag === 'yellow') {
+      isActive = true;
+    }
+  }
+  return isActive;
+}
+function getVersionDetailDisplayContent(mi, vi) {
+  const currentKey = mi + '|' + vi;
+  const currentTag = App.tags[currentKey] || '';
+  if (currentTag !== 'blue') return App.cells[currentKey] || '';
+  for (let prevVi = vi - 1; prevVi >= 0; prevVi--) {
+    const prevKey = mi + '|' + prevVi;
+    const prevTag = App.tags[prevKey] || '';
+    if (prevTag === 'red') break;
+    if (prevTag === 'yellow' || prevTag === 'green') {
+      return App.cells[prevKey] || '';
+    }
+  }
+  return '';
+}
+function normalizeComparableContent(html) {
+  return normalizeContentHTML(html || '').replace(/>\s+</g, '><').trim();
+}
+function getEffectiveCellState(mi, vi) {
+  if (vi < 0) return { content: '', exists: false, tag: '' };
+  const key = mi + '|' + vi;
+  const tag = App.tags[key] || '';
+  const content = App.cells[key] || '';
+  if (tag === 'red') return { content: '', exists: false, tag };
+  if (tag === 'green' || tag === 'yellow') return { content, exists: !!normalizeComparableContent(content), tag };
+  if (tag === 'blue') {
+    if (normalizeComparableContent(content)) return { content, exists: true, tag };
+    const previous = getEffectiveCellState(mi, vi - 1);
+    return { content: previous.content, exists: previous.exists, tag };
+  }
+  if (normalizeComparableContent(content)) return { content, exists: true, tag };
+  return { content: '', exists: false, tag };
+}
+function detectAutoCellTag(key, content) {
+  if (!isExistingCellKey(key)) return '';
+  const [mi, vi] = key.split('|').map(Number);
+  const currentContent = content || '';
+  const currentHasContent = !!normalizeComparableContent(currentContent) && normalizeComparableContent(currentContent) !== '<br>';
+  const previous = getEffectiveCellState(mi, vi - 1);
+  if (!currentHasContent) return previous.exists ? 'red' : '';
+  if (!previous.exists) return 'green';
+  return normalizeComparableContent(currentContent) === normalizeComparableContent(previous.content) ? 'blue' : 'yellow';
+}
+function isExistingCellKey(key) {
+  if (!key) return false;
+  const [mi, vi] = key.split('|').map(Number);
+  return Number.isInteger(mi) && Number.isInteger(vi) && !!App.modules[mi] && !!App.versions[vi];
+}
+function syncSelectedCellUI() {
+  document.querySelectorAll('td.data-cell.selected-cell').forEach(el => el.classList.remove('selected-cell'));
+  if (!isExistingCellKey(App.selectedCell)) {
+    App.selectedCell = null;
+    return;
+  }
+  const cell = document.querySelector(`td.data-cell[data-key="${App.selectedCell}"]`);
+  if (cell) cell.classList.add('selected-cell');
+  else App.selectedCell = null;
+}
+function selectCell(key) {
+  if (!isExistingCellKey(key)) return;
+  App.selectedCell = key;
+  syncSelectedCellUI();
+}
+function clearSelectedCell() {
+  if (!App.selectedCell) return;
+  App.selectedCell = null;
+  syncSelectedCellUI();
+}
+function cloneCellClipboardData(key) {
+  return { content: App.cells[key] || '' };
+}
+function copyCell(key = App.selectedCell) {
+  if (!isExistingCellKey(key)) {
+    showToast('请先选中单元格');
+    return;
+  }
+  App.cellClipboard = cloneCellClipboardData(key);
+  showToast('已复制单元格');
+}
+function pasteCell(targetKey = App.selectedCell) {
+  if (!isExistingCellKey(targetKey)) {
+    showToast('请先选中目标单元格');
+    return;
+  }
+  if (!App.cellClipboard) {
+    showToast('没有可粘贴的单元格内容');
+    return;
+  }
+  const prevContent = App.cells[targetKey] || '';
+  const prevTag = App.tags[targetKey] || '';
+  const nextContent = App.cellClipboard.content || '';
+  if (nextContent.trim() && nextContent.trim() !== '<br>') App.cells[targetKey] = nextContent;
+  else delete App.cells[targetKey];
+  const nextTag = detectAutoCellTag(targetKey, App.cells[targetKey] || '');
+  if (nextTag) App.tags[targetKey] = nextTag;
+  else delete App.tags[targetKey];
+  if (prevContent !== (App.cells[targetKey] || '') || prevTag !== (App.tags[targetKey] || '')) markDirty();
+  App.selectedCell = targetKey;
+  render();
+  showToast('已粘贴到单元格');
+}
+
+// ==================== SERIALIZATION ====================
+function toJSON() {
+  const nameParents = {};
+  for (const [ci, pi] of Object.entries(App.moduleParents)) {
+    const cn = App.modules[parseInt(ci)];
+    const pn = App.modules[parseInt(pi)];
+    if (cn && pn) nameParents[cn] = pn;
+  }
+  const nameCells = {};
+  for (const [k, v] of Object.entries(App.cells)) {
+    if (!v || !v.trim()) continue;
+    const [mi, vi] = k.split('|').map(Number);
+    const mn = App.modules[mi], vn = App.versions[vi];
+    if (mn && vn) nameCells[mn + '|' + vn] = v;
+  }
+  const nameTags = {};
+  for (const [k, v] of Object.entries(App.tags)) {
+    if (!v) continue;
+    const [mi, vi] = k.split('|').map(Number);
+    const mn = App.modules[mi], vn = App.versions[vi];
+    if (mn && vn) nameTags[mn + '|' + vn] = v;
+  }
+  const mStyles = {};
+  for (const [i, s] of Object.entries(App.moduleStyles)) {
+    const n = App.modules[parseInt(i)];
+    if (n) mStyles[n] = s;
+  }
+  const vStyles = {};
+  for (const [i, s] of Object.entries(App.versionStyles)) {
+    const n = App.versions[parseInt(i)];
+    if (n) vStyles[n] = s;
+  }
+  return {
+    projectName: App.projectName,
+    versions: [...App.versions],
+    modules: [...App.modules],
+    cells: nameCells,
+    tags: nameTags,
+    moduleParents: nameParents,
+    moduleStyles: mStyles,
+    versionStyles: vStyles,
+    theme: App.theme,
+    versionSort: App.versionSort,
+    assetDirName: App.assetDirName || '',
+  };
+}
+function fromJSON(data) {
+  revokeAssetObjectUrls();
+  App.projectName = data.projectName || '未命名项目';
+  App.versions = data.versions || [];
+  App.modules = data.modules || [];
+  App.cells = {};
+  App.tags = {};
+  App.moduleParents = {};
+  App.moduleStyles = {};
+  App.versionStyles = {};
+  App.collapsedModules = new Set();
+  App.theme = data.theme || 'light';
+  App.versionSort = data.versionSort === 'desc' ? 'desc' : 'asc';
+  App.assetDirName = data.assetDirName || '';
+  if (!['light','dark','auto'].includes(App.theme)) App.theme = 'light';
+  App.selectedCell = null;
+  App.cellClipboard = null;
+  App.editingTagTouched = false;
+  // Cells
+  if (data.cells) {
+    for (const [k, v] of Object.entries(data.cells)) {
+      const sep = k.indexOf('|');
+      const mn = k.substring(0, sep), vn = k.substring(sep + 1);
+      const mi = App.modules.indexOf(mn), vi = App.versions.indexOf(vn);
+      if (mi >= 0 && vi >= 0) App.cells[mi + '|' + vi] = v;
+    }
+  }
+  // Tags
+  if (data.tags) {
+    for (const [k, v] of Object.entries(data.tags)) {
+      const sep = k.indexOf('|');
+      const mn = k.substring(0, sep), vn = k.substring(sep + 1);
+      const mi = App.modules.indexOf(mn), vi = App.versions.indexOf(vn);
+      if (mi >= 0 && vi >= 0) App.tags[mi + '|' + vi] = v;
+    }
+  }
+  // Module parents
+  if (data.moduleParents) {
+    for (const [cn, pn] of Object.entries(data.moduleParents)) {
+      const ci = App.modules.indexOf(cn), pi = App.modules.indexOf(pn);
+      if (ci >= 0 && pi >= 0) App.moduleParents[ci] = pi;
+    }
+  }
+  // Styles
+  if (data.moduleStyles) {
+    for (const [n, s] of Object.entries(data.moduleStyles)) {
+      const i = App.modules.indexOf(n);
+      if (i >= 0) App.moduleStyles[i] = s;
+    }
+  }
+  if (data.versionStyles) {
+    for (const [n, s] of Object.entries(data.versionStyles)) {
+      const i = App.versions.indexOf(n);
+      if (i >= 0) App.versionStyles[i] = s;
+    }
+  }
+  App.fileHandle = App.fileHandle;
+  App.dirty = false;
+  App.editingCell = null;
+  App.editingDraft = '';
+  App.editingTag = '';
+}
+
+// ==================== REINDEX ====================
+function reindexCells(oldModules, oldVersions) {
+  const nc = {}, nt = {}, np = {}, nms = {}, nvs = {};
+  // Cells & tags
+  for (const [k, v] of Object.entries(App.cells)) {
+    const [omi, ovi] = k.split('|').map(Number);
+    const mn = oldModules[omi], vn = oldVersions[ovi];
+    if (!mn || !vn) continue;
+    const nmi = App.modules.indexOf(mn), nvi = App.versions.indexOf(vn);
+    if (nmi >= 0 && nvi >= 0) nc[nmi + '|' + nvi] = v;
+  }
+  for (const [k, v] of Object.entries(App.tags)) {
+    const [omi, ovi] = k.split('|').map(Number);
+    const mn = oldModules[omi], vn = oldVersions[ovi];
+    if (!mn || !vn) continue;
+    const nmi = App.modules.indexOf(mn), nvi = App.versions.indexOf(vn);
+    if (nmi >= 0 && nvi >= 0) nt[nmi + '|' + nvi] = v;
+  }
+  // Parents
+  for (const [ci, pi] of Object.entries(App.moduleParents)) {
+    const cn = oldModules[parseInt(ci)], pn = oldModules[parseInt(pi)];
+    if (!cn || !pn) continue;
+    const nci = App.modules.indexOf(cn), npi = App.modules.indexOf(pn);
+    if (nci >= 0 && npi >= 0) np[nci] = npi;
+  }
+  // Styles
+  for (const [i, s] of Object.entries(App.moduleStyles)) {
+    const n = oldModules[parseInt(i)];
+    if (!n) continue;
+    const ni = App.modules.indexOf(n);
+    if (ni >= 0) nms[ni] = s;
+  }
+  for (const [i, s] of Object.entries(App.versionStyles)) {
+    const n = oldVersions[parseInt(i)];
+    if (!n) continue;
+    const ni = App.versions.indexOf(n);
+    if (ni >= 0) nvs[ni] = s;
+  }
+  // Collapsed
+  const newCollapsed = new Set();
+  for (const ci of App.collapsedModules) {
+    const n = oldModules[ci];
+    if (!n) continue;
+    const ni = App.modules.indexOf(n);
+    if (ni >= 0) newCollapsed.add(ni);
+  }
+  App.cells = nc;
+  App.tags = nt;
+  App.moduleParents = np;
+  App.moduleStyles = nms;
+  App.versionStyles = nvs;
+  App.collapsedModules = newCollapsed;
+}
+
+// ==================== RENDER ====================
+function render() {
+  document.getElementById('projectName').textContent = App.projectName;
+  updateVersionSortButtons();
+  const table = document.getElementById('mainTable');
+  const empty = document.getElementById('emptyState');
+  if (App.versions.length === 0 && App.modules.length === 0) {
+    table.style.display = 'none';
+    empty.style.display = '';
+    return;
+  }
+  table.style.display = '';
+  empty.style.display = 'none';
+  const displayOrder = getModuleDisplayOrder();
+  const versionOrder = getVersionDisplayOrder();
+  // Columns = modules (with hierarchy), Rows = versions
+  let html = '<thead><tr><th class="corner-cell"></th>';
+  displayOrder.forEach(mi => {
+    const m = App.modules[mi];
+    if (!m) return;
+    const isChild = App.moduleParents[mi] !== undefined;
+    const hasChildren = getChildren(mi).length > 0;
+    const isCollapsed = App.collapsedModules.has(mi);
+    const ms = App.moduleStyles[mi];
+    const style = ms ? `style="color:${ms.color||''};background:${ms.bg||''}"` : '';
+    const headerClass = isChild ? 'module-header module-header-child' : 'module-header module-header-parent';
+    html += `<th class="${headerClass}" data-mi="${mi}" ${style} oncontextmenu="showModuleCtx(event,${mi})" onclick="showModuleDetail(${mi})">`;
+    html += '<span class="module-header-text">';
+    if (isChild) html += '<span style="color:var(--text-secondary);">└</span>';
+    if (hasChildren) {
+      html += `<button class="collapse-btn" onclick="event.stopPropagation();toggleCollapse(${mi})" title="${isCollapsed ? '展开子节点' : '折叠子节点'}">${isCollapsed ? '▶' : '▼'}</button>`;
+    }
+    html += `<span>${esc(m)}</span>`;
+    html += '</span></th>';
+  });
+  html += '</tr></thead><tbody>';
+  versionOrder.forEach(vi => {
+    const v = App.versions[vi];
+    const vs = App.versionStyles[vi];
+    const style = vs ? `style="color:${vs.color||''};background:${vs.bg||''}"` : '';
+    html += `<tr data-vi="${vi}">`;
+    html += `<th class="version-header" data-vi="${vi}" ${style} oncontextmenu="showVersionCtx(event,${vi})" onclick="showVersionDetail(${vi})">${esc(v)}</th>`;
+    displayOrder.forEach(mi => {
+      const m = App.modules[mi];
+      if (!m) return;
+      const key = mi + '|' + vi;
+      const content = renderDisplayContentHTML(App.cells[key] || '');
+      const tag = App.tags[key] || '';
+      const isEditing = App.editingCell === key;
+      const isSelected = App.selectedCell === key;
+      let cls = 'data-cell';
+      if (tag) cls += ' tag-' + tag;
+      else if (content.trim()) cls += ' has-content';
+      if (isEditing) cls += ' cell-editing';
+      if (isSelected) cls += ' selected-cell';
+      html += `<td class="${cls}" data-key="${key}" onclick="selectCell('${key}')" ondblclick="startEdit('${key}')" oncontextmenu="showCellCtx(event,'${key}')">`;
+      html += `<div class="cell-content">${content}</div>`;
+      html += '</td>';
+    });
+    html += '</tr>';
+  });
+  html += '</tbody>';
+  table.innerHTML = html;
+  syncSelectedCellUI();
+}
+function esc(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+function buildEditorHTML(key, content, tag) {
+  let html = '<div class="cell-editor-wrap">';
+  html += '<div class="cell-mini-toolbar">';
+  html += `<button title="粗体" onmousedown="execFmt(event,'bold')"><b>B</b></button>`;
+  html += `<button title="斜体" onmousedown="execFmt(event,'italic')"><i>I</i></button>`;
+  html += `<button title="下划线" onmousedown="execFmt(event,'underline')"><u>U</u></button>`;
+  html += `<button title="删除线" onmousedown="execFmt(event,'strikeThrough')"><s>S</s></button>`;
+  html += '<span class="tb-sep"></span>';
+  html += `<button title="无序列表" onmousedown="execFmt(event,'insertUnorderedList')">•</button>`;
+  html += `<button title="有序列表" onmousedown="execFmt(event,'insertOrderedList')">1.</button>`;
+  html += '<span class="tb-sep"></span>';
+  // Color picker
+  html += '<div class="color-picker-wrap">';
+  html += `<button class="color-picker-btn" title="字体颜色" onmousedown="event.preventDefault();toggleColorPalette(event)">A<span class="color-indicator"></span></button>`;
+  html += '<div class="color-palette" id="colorPalette">';
+  html += '<div class="color-palette-label">字体颜色</div>';
+  html += '<div class="color-palette-grid">';
+  const colors = ['#ef4444','#f97316','#eab308','#22c55e','#14b8a6','#3b82f6','#8b5cf6','#ec4899','#1a1d23','#374151','#6b7280','#9ca3af','#d1d5db','#f3f4f6','#ffffff','#000000'];
+  colors.forEach(c => {
+    html += `<button class="color-swatch" style="background:${c}" onmousedown="event.preventDefault();applyTextColor('${c}')"></button>`;
+  });
+  html += '</div>';
+  html += '<div class="color-palette-actions"><button onmousedown="event.preventDefault();applyTextColor(null)">清除颜色</button></div>';
+  html += '</div></div>';
+  html += '</div>'; // end toolbar
+  html += `<div class="cell-editor" contenteditable="true" onkeydown="handleEditorKey(event,'${key}')" onpaste="handlePaste(event)" onclick="handleEditorClick(event)" oninput="handleEditorInput()" onscroll="updateResizeHandle()">${content}</div>`;
+  html += '<div class="image-resize-handle" id="imageResizeHandle" onmousedown="startResize(event)"></div>';
+  html += '</div>';
+  return html;
+}
+function buildTagSelectorHTML(key, tag) {
+  const tagLabel = tag ? TAG_LABELS[tag] : '标签';
+  const tagColor = tag ? TAG_COLORS[tag] : 'var(--text-secondary)';
+  let html = '<div class="tag-select-wrap">';
+  html += `<button class="tag-select-btn" onmousedown="event.preventDefault();toggleTagDropdown(event)">`;
+  if (tag) html += `<span class="tag-dot-sm" style="background:${tagColor}"></span>`;
+  html += `<span>${esc(tagLabel)}</span></button>`;
+  html += '<div class="tag-dropdown" id="tagDropdown">';
+  Object.entries(TAG_LABELS).forEach(([k, label]) => {
+    html += `<button class="tag-dropdown-item" onmousedown="event.preventDefault();setCellTag('${key}','${k}')"><span class="tag-dot" style="background:${TAG_COLORS[k]}"></span><span class="tag-dropdown-text">${esc(label)}</span></button>`;
+  });
+  html += '<div class="tag-dropdown-sep"></div>';
+  html += `<button class="tag-dropdown-item" onmousedown="event.preventDefault();setCellTag('${key}',null)"><span class="tag-dot-placeholder"></span><span class="tag-dropdown-text">无标签</span></button>`;
+  html += '</div></div>';
+  return html;
+}
+
+// ==================== EDITING ====================
+function startEdit(key) {
+  if (App.editingCell && App.editingCell !== key) saveCellEdit();
+  selectCell(key);
+  App.editingCell = key;
+  App.editingDraft = App.cells[key] || '';
+  App.editingTag = App.tags[key] || '';
+  App.editingTagTouched = false;
+  render();
+  renderCellEditDialog();
+}
+function getCellEditMeta(key) {
+  const [mi, vi] = key.split('|').map(Number);
+  const versionOrder = getVersionDisplayOrder();
+  const pos = versionOrder.indexOf(vi);
+  const nextVi = pos >= 0 && pos + 1 < versionOrder.length ? versionOrder[pos + 1] : null;
+  return {
+    moduleName: App.modules[mi] || '',
+    versionName: App.versions[vi] || '',
+    nextKey: nextVi !== null ? mi + '|' + nextVi : null,
+  };
+}
+function getActiveCellEditor() {
+  return document.querySelector('#cellEditOverlay .cell-editor');
+}
+function getImageResizeHandle() {
+  return document.getElementById('imageResizeHandle');
+}
+function getCleanEditorHTML(editor) {
+  if (!editor) return '';
+  const clone = editor.cloneNode(true);
+  clone.querySelectorAll('img,table').forEach(el => {
+    el.classList.remove('is-resizable-selected');
+    if (el.tagName === 'IMG') el.removeAttribute('draggable');
+  });
+  return clone.innerHTML;
+}
+function syncEditingDraft() {
+  const editor = getActiveCellEditor();
+  if (editor) App.editingDraft = getCleanEditorHTML(editor);
+}
+function prepareResizableElements() {
+  const editor = getActiveCellEditor();
+  if (!editor) return;
+  editor.querySelectorAll('img').forEach(img => {
+    img.setAttribute('draggable', 'false');
+    img.addEventListener('load', updateResizeHandle, { once: true });
+  });
+}
+function clearResizableSelection() {
+  if (activeResizableElement && activeResizableElement.isConnected) {
+    activeResizableElement.classList.remove('is-resizable-selected');
+  }
+  activeResizableElement = null;
+  updateResizeHandle();
+}
+function selectResizableElement(el) {
+  if (!el || !el.isConnected) return;
+  if (activeResizableElement && activeResizableElement !== el) {
+    activeResizableElement.classList.remove('is-resizable-selected');
+  }
+  activeResizableElement = el;
+  activeResizableElement.classList.add('is-resizable-selected');
+  updateResizeHandle();
+}
+function updateResizeHandle() {
+  const handle = getImageResizeHandle();
+  const wrap = document.querySelector('#cellEditOverlay .cell-editor-wrap');
+  if (!handle || !wrap || !activeResizableElement || !activeResizableElement.isConnected) {
+    if (handle) handle.classList.remove('show');
+    return;
+  }
+  const wrapRect = wrap.getBoundingClientRect();
+  const targetRect = activeResizableElement.getBoundingClientRect();
+  if (!targetRect.width || !targetRect.height) {
+    handle.classList.remove('show');
+    return;
+  }
+  handle.style.left = `${targetRect.right - wrapRect.left}px`;
+  handle.style.top = `${targetRect.bottom - wrapRect.top}px`;
+  handle.classList.add('show');
+}
+function clamp(num, min, max) {
+  return Math.min(Math.max(num, min), max);
+}
+function finishResize() {
+  if (!resizeSession) return;
+  document.removeEventListener('mousemove', handleResizeMove);
+  document.removeEventListener('mouseup', finishResize);
+  document.body.style.cursor = '';
+  resizeSession.wrap?.classList.remove('resizing');
+  resizeSession = null;
+  syncEditingDraft();
+  updateResizeHandle();
+}
+function handleResizeMove(e) {
+  if (!resizeSession?.el?.isConnected) {
+    finishResize();
+    return;
+  }
+  const deltaX = e.clientX - resizeSession.startX;
+  const deltaY = e.clientY - resizeSession.startY;
+  const ratio = resizeSession.startWidth / Math.max(resizeSession.startHeight, 1);
+  const delta = Math.abs(deltaX) >= Math.abs(deltaY) ? deltaX : deltaY * ratio;
+  const nextWidth = clamp(
+    Math.round(resizeSession.startWidth + delta),
+    resizeSession.minWidth,
+    resizeSession.maxWidth
+  );
+  resizeSession.el.style.width = `${nextWidth}px`;
+  if (resizeSession.el.tagName === 'IMG') {
+    resizeSession.el.removeAttribute('width');
+    resizeSession.el.removeAttribute('height');
+    resizeSession.el.style.height = 'auto';
+  }
+  syncEditingDraft();
+  updateResizeHandle();
+}
+function startResize(e) {
+  if (!activeResizableElement || !activeResizableElement.isConnected) return;
+  e.preventDefault();
+  e.stopPropagation();
+  const editor = getActiveCellEditor();
+  const wrap = document.querySelector('#cellEditOverlay .cell-editor-wrap');
+  if (!editor || !wrap) return;
+  const rect = activeResizableElement.getBoundingClientRect();
+  resizeSession = {
+    el: activeResizableElement,
+    startX: e.clientX,
+    startY: e.clientY,
+    startWidth: rect.width,
+    startHeight: rect.height,
+    maxWidth: Math.max(48, editor.clientWidth - 24),
+    minWidth: activeResizableElement.tagName === 'TABLE' ? 120 : 48,
+    wrap,
+  };
+  document.body.style.cursor = 'nwse-resize';
+  wrap.classList.add('resizing');
+  document.addEventListener('mousemove', handleResizeMove);
+  document.addEventListener('mouseup', finishResize);
+}
+function handleEditorClick(e) {
+  const target = e.target;
+  if (target instanceof HTMLImageElement) {
+    e.preventDefault();
+    e.stopPropagation();
+    selectResizableElement(target);
+    return;
+  }
+  const table = target instanceof Element ? target.closest('table') : null;
+  if (table && getActiveCellEditor()?.contains(table)) {
+    selectResizableElement(table);
+    saveSelection();
+    return;
+  }
+  clearResizableSelection();
+  saveSelection();
+}
+function handleEditorInput() {
+  prepareResizableElements();
+  if (activeResizableElement && !activeResizableElement.isConnected) activeResizableElement = null;
+  syncEditingDraft();
+  updateResizeHandle();
+}
+function renderCellEditDialog() {
+  if (!App.editingCell) return;
+  const key = App.editingCell;
+  const meta = getCellEditMeta(key);
+  document.getElementById('cellEditTitle').textContent = meta.moduleName || '编辑单元格';
+  document.getElementById('cellEditSubtitle').textContent = meta.versionName ? `版本: ${meta.versionName}` : '';
+  document.getElementById('cellEditTagSlot').innerHTML = buildTagSelectorHTML(key, App.editingTag || '');
+  document.getElementById('cellEditBody').innerHTML = buildEditorHTML(key, App.editingDraft || '', App.editingTag || '');
+  const overlay = document.getElementById('cellEditOverlay');
+  overlay.style.display = 'flex';
+  savedSelection = null;
+  requestAnimationFrame(() => {
+    const editor = getActiveCellEditor();
+    if (editor) {
+      prepareResizableElements();
+      editor.focus();
+      placeCaretAtEnd(editor);
+      updateResizeHandle();
+    }
+  });
+}
+function closeCellEditDialog() {
+  finishResize();
+  clearResizableSelection();
+  document.getElementById('cellEditOverlay').style.display = 'none';
+  document.getElementById('cellEditBody').innerHTML = '';
+  document.getElementById('cellEditTitle').textContent = '';
+  document.getElementById('cellEditSubtitle').textContent = '';
+  document.getElementById('cellEditTagSlot').innerHTML = '';
+  App.editingCell = null;
+  App.editingDraft = '';
+  App.editingTag = '';
+  App.editingTagTouched = false;
+  savedSelection = null;
+}
+function commitEdit(key) {
+  const val = (App.editingDraft || '').trim();
+  const prev = App.cells[key] || '';
+  if (val && val !== '<br>') App.cells[key] = val;
+  else delete App.cells[key];
+  if (prev !== (App.cells[key] || '')) markDirty();
+  const prevTag = App.tags[key] || '';
+  const nextTag = App.editingTagTouched ? (App.editingTag || '') : detectAutoCellTag(key, App.cells[key] || '');
+  if (nextTag) App.tags[key] = nextTag;
+  else delete App.tags[key];
+  if (prevTag !== (App.tags[key] || '')) markDirty();
+}
+function saveCellEdit(nextKey = null) {
+  if (!App.editingCell) return;
+  syncEditingDraft();
+  const key = App.editingCell;
+  commitEdit(key);
+  closeCellEditDialog();
+  render();
+  if (nextKey) startEdit(nextKey);
+}
+function cancelCellEdit() {
+  if (!App.editingCell) return;
+  closeCellEditDialog();
+  render();
+}
+function handleEditorBlur(e, key) {
+  return;
+}
+function handleEditorKey(e, key) {
+  if (e.key === 'Escape') {
+    e.preventDefault();
+    cancelCellEdit();
+  }
+  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+    e.preventDefault();
+    saveCellEdit();
+  }
+  if (e.key === 'Tab' && !e.shiftKey) {
+    e.preventDefault();
+    saveCellEdit(getCellEditMeta(key).nextKey);
+  }
+}
+function handlePaste(e) {
+  const imageItem = [...(e.clipboardData?.items || [])].find(item => item.type.startsWith('image/'));
+  if (imageItem) {
+    e.preventDefault();
+    const file = imageItem.getAsFile();
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      document.execCommand('insertHTML', false, `<img src="${reader.result}" alt="image">`);
+      requestAnimationFrame(() => {
+        prepareResizableElements();
+        const editor = getActiveCellEditor();
+        const images = editor ? [...editor.querySelectorAll('img')] : [];
+        const lastImage = images[images.length - 1];
+        if (lastImage) selectResizableElement(lastImage);
+        syncEditingDraft();
+      });
+    };
+    reader.readAsDataURL(file);
+    return;
+  }
+  const html = e.clipboardData.getData('text/html');
+  if (html) {
+    e.preventDefault();
+    document.execCommand('insertHTML', false, cleanPastedHTML(html));
+    requestAnimationFrame(() => {
+      prepareResizableElements();
+      syncEditingDraft();
+      updateResizeHandle();
+    });
+  }
+}
+function cleanPastedHTML(html) {
+  return normalizeContentHTML(html);
+}
+function execFmt(e, cmd) {
+  e.preventDefault();
+  const editor = getActiveCellEditor();
+  if (editor) editor.focus();
+  restoreSelection();
+  document.execCommand(cmd, false, null);
+  saveSelection();
+}
+function toggleColorPalette(e) {
+  saveSelection();
+  const palette = document.getElementById('colorPalette');
+  if (palette) palette.classList.toggle('show');
+}
+function applyTextColor(color) {
+  const editor = getActiveCellEditor();
+  if (editor) editor.focus();
+  restoreSelection();
+  if (color) {
+    document.execCommand('foreColor', false, color);
+  } else {
+    document.execCommand('removeFormat', false, null);
+  }
+  const palette = document.getElementById('colorPalette');
+  if (palette) palette.classList.remove('show');
+  saveSelection();
+}
+function toggleTagDropdown(e) {
+  const dd = document.getElementById('tagDropdown');
+  if (dd) dd.classList.toggle('show');
+}
+function setCellTag(key, tag) {
+  syncEditingDraft();
+  App.editingTag = tag || '';
+  App.editingTagTouched = true;
+  const dd = document.getElementById('tagDropdown');
+  if (dd) dd.classList.remove('show');
+  if (App.editingCell === key) renderCellEditDialog();
+}
+function saveSelection() {
+  const sel = window.getSelection();
+  if (sel.rangeCount > 0) savedSelection = sel.getRangeAt(0).cloneRange();
+}
+function restoreSelection() {
+  if (savedSelection) {
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(savedSelection);
+  }
+}
+function placeCaretAtEnd(el) {
+  const range = document.createRange();
+  range.selectNodeContents(el);
+  range.collapse(false);
+  const sel = window.getSelection();
+  sel.removeAllRanges();
+  sel.addRange(range);
+}
+function toggleCollapse(mi) {
+  if (App.collapsedModules.has(mi)) {
+    App.collapsedModules.delete(mi);
+  } else {
+    App.collapsedModules.add(mi);
+  }
+  render();
+}
+// ==================== CONTEXT MENUS ====================
+function hideContextMenu() {
+  document.getElementById('contextMenu').style.display = 'none';
+}
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('.context-menu')) hideContextMenu();
+});
+
+function showVersionCtx(e, vi) {
+  e.preventDefault();
+  clearSelectedCell();
+  if (App.editingCell) saveCellEdit();
+  const menu = document.getElementById('contextMenu');
+  const order = getVersionDisplayOrder();
+  const pos = order.indexOf(vi);
+  let html = '';
+  html += `<button class="context-menu-item" onclick="hideContextMenu();renameVersion(${vi})">重命名</button>`;
+  html += `<button class="context-menu-item" onclick="hideContextMenu();showHeaderColorPicker(event,'version',${vi})">设置颜色</button>`;
+  html += '<div class="context-menu-sep"></div>';
+  if (pos > 0) html += `<button class="context-menu-item" onclick="hideContextMenu();moveVersion(${vi},-1)">上移</button>`;
+  if (pos < order.length - 1) html += `<button class="context-menu-item" onclick="hideContextMenu();moveVersion(${vi},1)">下移</button>`;
+  html += '<div class="context-menu-sep"></div>';
+  html += `<button class="context-menu-item" onclick="hideContextMenu();showVersionDetail(${vi})">查看详情</button>`;
+  html += '<div class="context-menu-sep"></div>';
+  html += `<button class="context-menu-item danger" onclick="hideContextMenu();deleteVersion(${vi})">删除</button>`;
+  menu.innerHTML = html;
+  positionMenu(menu, e);
+}
+
+function showModuleCtx(e, mi) {
+  e.preventDefault();
+  clearSelectedCell();
+  if (App.editingCell) saveCellEdit();
+  const menu = document.getElementById('contextMenu');
+  const isChild = App.moduleParents[mi] !== undefined;
+  const hasKids = getChildren(mi).length > 0;
+  const isCollapsed = App.collapsedModules.has(mi);
+  let html = '';
+  html += `<button class="context-menu-item" onclick="hideContextMenu();renameModule(${mi})">重命名</button>`;
+  html += `<button class="context-menu-item" onclick="hideContextMenu();showHeaderColorPicker(event,'module',${mi})">设置颜色</button>`;
+  html += '<div class="context-menu-sep"></div>';
+  // Add child node
+  if (!isChild) {
+    html += `<button class="context-menu-item" onclick="hideContextMenu();addChildModule(${mi})">添加子节点</button>`;
+  }
+  // Collapse / expand
+  if (hasKids) {
+    if (isCollapsed) {
+      html += `<button class="context-menu-item" onclick="hideContextMenu();toggleCollapse(${mi})">展开子节点</button>`;
+    } else {
+      html += `<button class="context-menu-item" onclick="hideContextMenu();toggleCollapse(${mi})">折叠子节点</button>`;
+    }
+  }
+  // Remove parent relationship
+  if (isChild) {
+    html += `<button class="context-menu-item" onclick="hideContextMenu();removeParent(${mi})">取消子节点</button>`;
+  }
+  html += '<div class="context-menu-sep"></div>';
+  // Move
+  const order = getModuleDisplayOrder();
+  const posInOrder = order.indexOf(mi);
+  if (posInOrder > 0) html += `<button class="context-menu-item" onclick="hideContextMenu();moveModule(${mi},-1)">左移</button>`;
+  if (posInOrder < order.length - 1) html += `<button class="context-menu-item" onclick="hideContextMenu();moveModule(${mi},1)">右移</button>`;
+  html += '<div class="context-menu-sep"></div>';
+  html += `<button class="context-menu-item" onclick="hideContextMenu();showModuleDetail(${mi})">查看详情</button>`;
+  html += '<div class="context-menu-sep"></div>';
+  html += `<button class="context-menu-item danger" onclick="hideContextMenu();deleteModule(${mi})">删除</button>`;
+  menu.innerHTML = html;
+  positionMenu(menu, e);
+}
+function showCellCtx(e, key) {
+  e.preventDefault();
+  if (App.editingCell) saveCellEdit();
+  selectCell(key);
+  const menu = document.getElementById('contextMenu');
+  let html = '';
+  html += `<button class="context-menu-item" onclick="hideContextMenu();copyCell('${key}')">复制单元格</button>`;
+  html += `<button class="context-menu-item" onclick="hideContextMenu();pasteCell('${key}')">粘贴到此单元格</button>`;
+  html += '<div class="context-menu-sep"></div>';
+  html += `<button class="context-menu-item" onclick="hideContextMenu();startEdit('${key}')">编辑单元格</button>`;
+  menu.innerHTML = html;
+  positionMenu(menu, e);
+}
+
+function positionMenu(menu, e) {
+  menu.style.display = 'block';
+  menu.style.left = '-9999px';
+  menu.style.top = '-9999px';
+  requestAnimationFrame(() => {
+    const rect = menu.getBoundingClientRect();
+    let x = e.clientX, y = e.clientY;
+    if (x + rect.width > window.innerWidth) x = window.innerWidth - rect.width - 8;
+    if (y + rect.height > window.innerHeight) y = window.innerHeight - rect.height - 8;
+    menu.style.left = x + 'px';
+    menu.style.top = y + 'px';
+  });
+}
+
+// ==================== HEADER COLOR PICKER ====================
+function showHeaderColorPicker(e, type, idx) {
+  setTimeout(() => {
+    const menu = document.getElementById('contextMenu');
+    const colors = ['#ef4444','#f97316','#eab308','#22c55e','#14b8a6','#3b82f6','#8b5cf6','#ec4899','#1a1d23','#374151','#6b7280','#9ca3af','#d1d5db','#f3f4f6','#ffffff','#fef2f2','#fffbeb','#f0fdf4','#eff6ff','#faf5ff','#fff1f2','#f0f9ff','#fdf4ff'];
+    let html = '<div style="padding:10px;">';
+    html += '<div style="font-size:12px;color:var(--text-secondary);margin-bottom:6px;">字体颜色</div>';
+    html += '<div style="display:grid;grid-template-columns:repeat(8,1fr);gap:3px;margin-bottom:8px;">';
+    colors.forEach(c => {
+      html += `<button class="color-swatch" style="background:${c}" onclick="setHeaderStyle('${type}',${idx},'color','${c}')"></button>`;
+    });
+    html += '</div>';
+    html += '<div style="font-size:12px;color:var(--text-secondary);margin-bottom:6px;">背景颜色</div>';
+    html += '<div style="display:grid;grid-template-columns:repeat(8,1fr);gap:3px;margin-bottom:8px;">';
+    colors.forEach(c => {
+      html += `<button class="color-swatch" style="background:${c}" onclick="setHeaderStyle('${type}',${idx},'bg','${c}')"></button>`;
+    });
+    html += '</div>';
+    html += '<div style="display:flex;gap:4px;">';
+    html += `<button style="flex:1;font-size:11px;padding:4px 8px;border-radius:4px;background:var(--btn-bg);color:var(--text-secondary);cursor:pointer;border:none;" onclick="clearHeaderStyle('${type}',${idx})">清除</button>`;
+    html += `<button style="flex:1;font-size:11px;padding:4px 8px;border-radius:4px;background:var(--btn-bg);color:var(--text-secondary);cursor:pointer;border:none;" onclick="hideContextMenu()">关闭</button>`;
+    html += '</div></div>';
+    menu.innerHTML = html;
+    menu.style.display = 'block';
+  }, 10);
+}
+
+function setHeaderStyle(type, idx, prop, value) {
+  const store = type === 'module' ? App.moduleStyles : App.versionStyles;
+  if (!store[idx]) store[idx] = {};
+  store[idx][prop] = value;
+  markDirty();
+  render();
+}
+function clearHeaderStyle(type, idx) {
+  const store = type === 'module' ? App.moduleStyles : App.versionStyles;
+  delete store[idx];
+  markDirty();
+  hideContextMenu();
+  render();
+}
+
+// ==================== ADD CHILD MODULE ====================
+function addChildModule(parentIdx) {
+  showModal('添加子节点', '子节点名称', '', (name) => {
+    if (!name.trim()) return;
+    if (App.modules.includes(name.trim())) { alert('功能名称已存在'); return; }
+    const oldM = [...App.modules], oldV = [...App.versions];
+    // Insert right after parent in the array
+    const insertIdx = parentIdx + 1;
+    App.modules.splice(insertIdx, 0, name.trim());
+    reindexCells(oldM, oldV);
+    // Set parent relationship (new index)
+    const newChildIdx = App.modules.indexOf(name.trim());
+    const newParentIdx = App.modules.indexOf(oldM[parentIdx]);
+    App.moduleParents[newChildIdx] = newParentIdx;
+    markDirty();
+    render();
+  });
+}
+function removeParent(mi) {
+  delete App.moduleParents[mi];
+  markDirty();
+  render();
+}
+// ==================== MODAL ====================
+function showModal(title, placeholder, value, callback) {
+  modalCallback = callback;
+  document.getElementById('modalTitle').textContent = title;
+  const input = document.getElementById('modalInput');
+  input.placeholder = placeholder || '';
+  input.value = value || '';
+  document.getElementById('modalOverlay').style.display = 'flex';
+  setTimeout(() => input.focus(), 50);
+}
+function closeModal() {
+  document.getElementById('modalOverlay').style.display = 'none';
+  modalCallback = null;
+}
+function confirmModal() {
+  const val = document.getElementById('modalInput').value;
+  if (modalCallback) modalCallback(val);
+  closeModal();
+}
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && document.getElementById('modalOverlay').style.display === 'flex') {
+    confirmModal();
+  }
+  if (e.key === 'Escape' && document.getElementById('modalOverlay').style.display === 'flex') {
+    closeModal();
+  }
+});
+
+// ==================== CRUD: VERSIONS ====================
+function addVersion() {
+  showModal('添加版本', '版本名称 (如 v1.0)', '', (name) => {
+    if (!name.trim()) return;
+    if (App.versions.includes(name.trim())) { alert('版本已存在'); return; }
+    App.versions.push(name.trim());
+    const newVi = App.versions.length - 1;
+    App.modules.forEach((_, mi) => {
+      if (isModuleActiveBeforeVersion(mi, newVi)) {
+        App.tags[mi + '|' + newVi] = 'blue';
+      }
+    });
+    markDirty();
+    render();
+  });
+}
+function renameVersion(vi) {
+  showModal('重命名版本', '新名称', App.versions[vi], (name) => {
+    if (!name.trim() || name.trim() === App.versions[vi]) return;
+    if (App.versions.includes(name.trim())) { alert('版本名称已存在'); return; }
+    const oldM = [...App.modules], oldV = [...App.versions];
+    App.versions[vi] = name.trim();
+    reindexCells(oldM, oldV);
+    markDirty();
+    render();
+  });
+}
+function deleteVersion(vi) {
+  if (!confirm('确定删除版本 "' + App.versions[vi] + '" 及其所有数据？')) return;
+  const oldM = [...App.modules], oldV = [...App.versions];
+  App.versions.splice(vi, 1);
+  reindexCells(oldM, oldV);
+  markDirty();
+  render();
+}
+function moveVersion(vi, dir) {
+  const order = getVersionDisplayOrder();
+  const pos = order.indexOf(vi);
+  const targetPos = pos + dir;
+  if (pos < 0 || targetPos < 0 || targetPos >= order.length) return;
+  const nvi = order[targetPos];
+  const oldM = [...App.modules], oldV = [...App.versions];
+  [App.versions[vi], App.versions[nvi]] = [App.versions[nvi], App.versions[vi]];
+  reindexCells(oldM, oldV);
+  markDirty();
+  render();
+}
+
+// ==================== CRUD: MODULES ====================
+function addModule() {
+  showModal('添加功能', '功能名称', '', (name) => {
+    if (!name.trim()) return;
+    if (App.modules.includes(name.trim())) { alert('功能名称已存在'); return; }
+    App.modules.push(name.trim());
+    markDirty();
+    render();
+  });
+}
+function renameModule(mi) {
+  showModal('重命名功能', '新名称', App.modules[mi], (name) => {
+    if (!name.trim() || name.trim() === App.modules[mi]) return;
+    if (App.modules.includes(name.trim())) { alert('功能名称已存在'); return; }
+    const oldM = [...App.modules], oldV = [...App.versions];
+    App.modules[mi] = name.trim();
+    reindexCells(oldM, oldV);
+    markDirty();
+    render();
+  });
+}
+function deleteModule(mi) {
+  if (!confirm('确定删除功能 "' + App.modules[mi] + '" 及其所有数据？')) return;
+  // Also remove children
+  const kids = getChildren(mi);
+  const oldM = [...App.modules], oldV = [...App.versions];
+  const toRemove = [mi, ...kids].sort((a, b) => b - a);
+  toRemove.forEach(idx => App.modules.splice(idx, 1));
+  reindexCells(oldM, oldV);
+  markDirty();
+  render();
+}
+function moveModule(mi, dir) {
+  const order = getModuleDisplayOrder();
+  const pos = order.indexOf(mi);
+  const targetPos = pos + dir;
+  if (targetPos < 0 || targetPos >= order.length) return;
+  // Swap in actual modules array
+  const targetMi = order[targetPos];
+  const miPos = App.modules.indexOf(App.modules[mi]);
+  const targetMiPos = App.modules.indexOf(App.modules[targetMi]);
+  const oldM = [...App.modules], oldV = [...App.versions];
+  [App.modules[miPos], App.modules[targetMiPos]] = [App.modules[targetMiPos], App.modules[miPos]];
+  reindexCells(oldM, oldV);
+  markDirty();
+  render();
+}
+
+// ==================== PROJECT ====================
+function renameProject() {
+  showModal('项目名称', '输入项目名称', App.projectName, (name) => {
+    if (name.trim()) {
+      App.projectName = name.trim();
+      markDirty();
+      render();
+    }
+  });
+}
+
+// ==================== FILE I/O ====================
+function newProject() {
+  if (App.dirty && !confirm('当前有未保存的更改，确定新建项目？')) return;
+  App.projectName = '未命名项目';
+  App.versions = [];
+  App.modules = [];
+  App.cells = {};
+  App.tags = {};
+  App.moduleParents = {};
+  App.moduleStyles = {};
+  App.versionStyles = {};
+  App.collapsedModules = new Set();
+  App.theme = 'light';
+  App.versionSort = 'asc';
+  App.fileHandle = null;
+  App.selectedCell = null;
+  App.cellClipboard = null;
+  App.editingCell = null;
+  App.editingTagTouched = false;
+  clearDirty();
+  applyTheme();
+  render();
+}
+
+async function saveFile() {
+  const data = JSON.stringify(toJSON(), null, 2);
+  if (window.showSaveFilePicker && App.fileHandle) {
+    try {
+      const writable = await App.fileHandle.createWritable();
+      await writable.write(data);
+      await writable.close();
+      clearDirty();
+      return;
+    } catch (e) { /* fallback */ }
+  }
+  await saveFileAs();
+}
+
+async function saveFileAs() {
+  const data = JSON.stringify(toJSON(), null, 2);
+  if (window.showSaveFilePicker) {
+    try {
+      const startInHandle = await loadPersistedHandle(LAST_OPEN_HANDLE_KEY);
+      const pickerOptions = {
+        suggestedName: App.projectName + '.json',
+        types: [{ description: 'JSON', accept: { 'application/json': ['.json'] } }],
+      };
+      if (startInHandle) pickerOptions.startIn = startInHandle;
+      try {
+        App.fileHandle = await window.showSaveFilePicker(pickerOptions);
+      } catch (e) {
+        if (!startInHandle || !shouldRetryPickerWithoutHandle(e)) throw e;
+        App.fileHandle = await window.showSaveFilePicker({
+          suggestedName: App.projectName + '.json',
+          types: [{ description: 'JSON', accept: { 'application/json': ['.json'] } }],
+        });
+      }
+      const writable = await App.fileHandle.createWritable();
+      await writable.write(data);
+      await writable.close();
+      await savePersistedHandle(LAST_OPEN_HANDLE_KEY, App.fileHandle);
+      clearDirty();
+      return;
+    } catch (e) {
+      if (e.name === 'AbortError') return;
+    }
+  }
+  // Fallback: download
+  const blob = new Blob([data], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = App.projectName + '.json';
+  a.click();
+  URL.revokeObjectURL(url);
+  clearDirty();
+}
+
+function openFile() {
+  if (App.dirty && !confirm('当前有未保存的更改，确定打开新文件？')) return;
+  if (window.showOpenFilePicker) {
+    window.showOpenFilePicker({
+      types: [{ description: 'JSON', accept: { 'application/json': ['.json'] } }],
+    }).then(async ([handle]) => {
+      App.fileHandle = handle;
+      const file = await handle.getFile();
+      const text = await file.text();
+      loadData(JSON.parse(text));
+    }).catch(() => {});
+  } else {
+    document.getElementById('fileInput').click();
+  }
+}
+
+async function openFile() {
+  if (App.dirty && !confirm('褰撳墠鏈夋湭淇濆瓨鐨勬洿鏀癸紝纭畾鎵撳紑鏂版枃浠讹紵')) return;
+  if (window.showOpenFilePicker) {
+    try {
+      const startInHandle = await loadPersistedHandle(LAST_OPEN_HANDLE_KEY);
+      const pickerOptions = {
+        types: [{ description: 'JSON', accept: { 'application/json': ['.json'] } }],
+      };
+      if (startInHandle) pickerOptions.startIn = startInHandle;
+      const [handle] = await window.showOpenFilePicker(pickerOptions);
+      App.fileHandle = handle;
+      const file = await handle.getFile();
+      const text = await file.text();
+      await savePersistedHandle(LAST_OPEN_HANDLE_KEY, handle);
+      loadData(JSON.parse(text));
+    } catch (e) {}
+  } else {
+    document.getElementById('fileInput').click();
+  }
+}
+
+async function openFile() {
+  if (App.dirty && !confirm('There are unsaved changes. Open another file?')) return;
+  if (window.showOpenFilePicker) {
+    try {
+      const startInHandle = await loadPersistedHandle(LAST_OPEN_HANDLE_KEY);
+      const baseOptions = {
+        types: [{ description: 'JSON', accept: { 'application/json': ['.json'] } }],
+      };
+      let handle;
+      try {
+        const pickerOptions = startInHandle ? { ...baseOptions, startIn: startInHandle } : baseOptions;
+        [handle] = await window.showOpenFilePicker(pickerOptions);
+      } catch (e) {
+        if (!startInHandle || !shouldRetryPickerWithoutHandle(e)) throw e;
+        [handle] = await window.showOpenFilePicker(baseOptions);
+      }
+      App.fileHandle = handle;
+      const file = await handle.getFile();
+      const text = await file.text();
+      await savePersistedHandle(LAST_OPEN_HANDLE_KEY, handle);
+      loadData(JSON.parse(text));
+    } catch (e) {}
+  } else {
+    document.getElementById('fileInput').click();
+  }
+}
+
+function newProject() {
+  if (App.editingCell) saveCellEdit();
+  if (App.dirty && !confirm('当前有未保存的更改，确定新建项目？')) return;
+  revokeAssetObjectUrls();
+  App.projectName = '未命名项目';
+  App.versions = [];
+  App.modules = [];
+  App.cells = {};
+  App.tags = {};
+  App.moduleParents = {};
+  App.moduleStyles = {};
+  App.versionStyles = {};
+  App.collapsedModules = new Set();
+  App.theme = 'light';
+  App.versionSort = 'asc';
+  App.fileHandle = null;
+  App.projectDirHandle = null;
+  App.assetDirName = '';
+  App.editingCell = null;
+  App.editingDraft = '';
+  App.editingTag = '';
+  clearDirty();
+  applyTheme();
+  render();
+}
+
+async function saveFile() {
+  if (App.editingCell) saveCellEdit();
+  if (App.fileHandle) App.assetDirName = sanitizeFileName(App.fileHandle.name.replace(/\.json$/i, '')) + '_assets';
+  const data = JSON.stringify(await prepareDataForSave(), null, 2);
+  if (window.showSaveFilePicker && App.fileHandle) {
+    try {
+      const writable = await App.fileHandle.createWritable();
+      await writable.write(data);
+      await writable.close();
+      clearDirty();
+      return;
+    } catch (e) {}
+  }
+  await saveFileAs();
+}
+
+async function saveFileAs() {
+  if (App.editingCell) saveCellEdit();
+  if (window.showSaveFilePicker) {
+    try {
+      const startInHandle = await loadPersistedHandle(LAST_OPEN_HANDLE_KEY);
+      const pickerOptions = {
+        suggestedName: App.projectName + '.json',
+        types: [{ description: 'JSON', accept: { 'application/json': ['.json'] } }],
+      };
+      if (startInHandle) pickerOptions.startIn = startInHandle;
+      try {
+        App.fileHandle = await window.showSaveFilePicker(pickerOptions);
+      } catch (e) {
+        if (!startInHandle || !shouldRetryPickerWithoutHandle(e)) throw e;
+        App.fileHandle = await window.showSaveFilePicker({
+          suggestedName: App.projectName + '.json',
+          types: [{ description: 'JSON', accept: { 'application/json': ['.json'] } }],
+        });
+      }
+      App.assetDirName = sanitizeFileName(App.fileHandle.name.replace(/\.json$/i, '')) + '_assets';
+      const data = JSON.stringify(await prepareDataForSave(), null, 2);
+      const writable = await App.fileHandle.createWritable();
+      await writable.write(data);
+      await writable.close();
+      await savePersistedHandle(LAST_OPEN_HANDLE_KEY, App.fileHandle);
+      clearDirty();
+      return;
+    } catch (e) {
+      if (e.name === 'AbortError') return;
+    }
+  }
+  const blob = new Blob([JSON.stringify(toJSON(), null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = App.projectName + '.json';
+  a.click();
+  URL.revokeObjectURL(url);
+  clearDirty();
+}
+
+async function openFile() {
+  if (App.editingCell) saveCellEdit();
+  if (App.dirty && !confirm('当前有未保存的更改，确定打开新文件？')) return;
+  if (window.showOpenFilePicker) {
+    try {
+      const startInHandle = await loadPersistedHandle(LAST_OPEN_HANDLE_KEY);
+      const baseOptions = {
+        types: [{ description: 'JSON', accept: { 'application/json': ['.json'] } }],
+      };
+      let handle;
+      try {
+        const pickerOptions = startInHandle ? { ...baseOptions, startIn: startInHandle } : baseOptions;
+        [handle] = await window.showOpenFilePicker(pickerOptions);
+      } catch (e) {
+        if (!startInHandle || !shouldRetryPickerWithoutHandle(e)) throw e;
+        [handle] = await window.showOpenFilePicker(baseOptions);
+      }
+      App.fileHandle = handle;
+      App.assetDirName = sanitizeFileName(handle.name.replace(/\.json$/i, '')) + '_assets';
+      const file = await handle.getFile();
+      const text = await file.text();
+      await savePersistedHandle(LAST_OPEN_HANDLE_KEY, handle);
+      await loadData(JSON.parse(text));
+    } catch (e) {}
+  } else {
+    document.getElementById('fileInput').click();
+  }
+}
+
+function handleFileOpen(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = async () => {
+    try {
+      App.fileHandle = null;
+      App.projectDirHandle = null;
+      App.assetDirName = sanitizeFileName(file.name.replace(/\.json$/i, '')) + '_assets';
+      await loadData(JSON.parse(reader.result));
+    } catch (err) {
+      alert('文件格式错误');
+    }
+  };
+  reader.readAsText(file);
+  e.target.value = '';
+}
+
+async function loadData(data) {
+  fromJSON(data);
+  await hydrateLoadedCells();
+  clearDirty();
+  applyTheme();
+  render();
+}
+async function restoreLastOpenedFile() {
+  if (!window.showOpenFilePicker) return false;
+  const handle = await loadPersistedHandle(LAST_OPEN_HANDLE_KEY);
+  if (!handle) return false;
+  if (!(await hasFileReadPermission(handle))) return false;
+  try {
+    App.fileHandle = handle;
+    App.assetDirName = sanitizeFileName(handle.name.replace(/\.json$/i, '')) + '_assets';
+    const file = await handle.getFile();
+    const text = await file.text();
+    await loadData(JSON.parse(text));
+    showToast('已恢复上次文件');
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+// ==================== DETAIL VIEWS ====================
+function showVersionDetail(vi) {
+  const title = App.versions[vi];
+  document.getElementById('detailTitle').textContent = title;
+  document.getElementById('detailSubtitle').textContent = '版本详情';
+  const body = document.getElementById('detailBody');
+  const order = getModuleDisplayOrder();
+  let html = '';
+  order.forEach(mi => {
+    const key = mi + '|' + vi;
+    const content = getVersionDetailDisplayContent(mi, vi);
+    const tag = App.tags[key] || '';
+    const mName = App.modules[mi];
+    const isChild = App.moduleParents[mi] !== undefined;
+    const cardClass = isChild ? 'detail-card child-card' : 'detail-card';
+    html += `<div class="${cardClass}">`;
+    html += '<div class="detail-card-header">';
+    html += `<span class="detail-card-name">${esc(mName)}</span>`;
+    if (tag) {
+      html += `<span class="detail-card-tag tag-${tag}">${esc(TAG_LABELS[tag])}</span>`;
+    }
+    html += '</div>';
+    if (content.trim()) {
+      html += `<div class="detail-card-content">${renderDisplayContentHTML(content)}</div>`;
+    } else {
+      html += '<div class="detail-card-empty">无记录</div>';
+    }
+    html += '</div>';
+  });
+  if (!html) html = '<div class="detail-card-empty">无功能模块</div>';
+  body.innerHTML = html;
+  document.getElementById('detailOverlay').style.display = 'flex';
+}
+
+function showModuleDetail(mi) {
+  const title = App.modules[mi];
+  const isChild = App.moduleParents[mi] !== undefined;
+  let subtitle = '功能详情';
+  if (isChild) {
+    const parentIdx = App.moduleParents[mi];
+    subtitle = '子节点 · 父节点: ' + App.modules[parentIdx];
+  }
+  document.getElementById('detailTitle').textContent = title;
+  document.getElementById('detailSubtitle').textContent = subtitle;
+  const body = document.getElementById('detailBody');
+  let html = '';
+  // This module's versions
+  html += '<div class="detail-section">';
+  html += `<div class="detail-section-title">版本记录</div>`;
+  getVersionDisplayOrder().forEach(vi => {
+    const v = App.versions[vi];
+    const key = mi + '|' + vi;
+    const content = App.cells[key] || '';
+    const tag = App.tags[key] || '';
+    html += '<div class="detail-card">';
+    html += '<div class="detail-card-header">';
+    html += `<span class="detail-card-name">${esc(v)}</span>`;
+    if (tag) html += `<span class="detail-card-tag tag-${tag}">${esc(TAG_LABELS[tag])}</span>`;
+    html += '</div>';
+    if (content.trim()) {
+      html += `<div class="detail-card-content">${renderDisplayContentHTML(content)}</div>`;
+    } else {
+      html += '<div class="detail-card-empty">无记录</div>';
+    }
+    html += '</div>';
+  });
+  html += '</div>';
+  // Children sections
+  const kids = getChildren(mi);
+  if (kids.length > 0) {
+    html += '<div class="detail-section">';
+    html += '<div class="detail-section-title">子节点</div>';
+    kids.forEach(ki => {
+      html += `<div style="margin-bottom:16px;">`;
+      html += `<div style="font-size:14px;font-weight:600;color:var(--text);margin-bottom:8px;padding-left:6px;border-left:3px solid var(--accent);">${esc(App.modules[ki])}</div>`;
+      getVersionDisplayOrder().forEach(vi => {
+        const v = App.versions[vi];
+        const key = ki + '|' + vi;
+        const content = App.cells[key] || '';
+        const tag = App.tags[key] || '';
+        html += '<div class="detail-card child-card">';
+        html += '<div class="detail-card-header">';
+        html += `<span class="detail-card-name">${esc(v)}</span>`;
+        if (tag) html += `<span class="detail-card-tag tag-${tag}">${esc(TAG_LABELS[tag])}</span>`;
+        html += '</div>';
+        if (content.trim()) {
+          html += `<div class="detail-card-content">${renderDisplayContentHTML(content)}</div>`;
+        } else {
+          html += '<div class="detail-card-empty">无记录</div>';
+        }
+        html += '</div>';
+      });
+      html += '</div>';
+    });
+    html += '</div>';
+  }
+  body.innerHTML = html;
+  document.getElementById('detailOverlay').style.display = 'flex';
+}
+
+function closeDetail() {
+  document.getElementById('detailOverlay').style.display = 'none';
+}
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && document.getElementById('detailOverlay').style.display === 'flex') {
+    closeDetail();
+  }
+});
+
+// ==================== EXPORT ====================
+function exportDetail() {
+  const body = document.getElementById('detailBody');
+  const title = document.getElementById('detailTitle').textContent;
+  const subtitle = document.getElementById('detailSubtitle').textContent;
+  let text = title + ' (' + subtitle + ')\n';
+  text += '='.repeat(40) + '\n\n';
+  body.querySelectorAll('.detail-card, .detail-section-title').forEach(el => {
+    if (el.classList.contains('detail-section-title')) {
+      text += '\n【' + el.textContent.trim() + '】\n';
+      return;
+    }
+    const name = el.querySelector('.detail-card-name');
+    const tag = el.querySelector('.detail-card-tag');
+    const content = el.querySelector('.detail-card-content');
+    const empty = el.querySelector('.detail-card-empty');
+    const isChild = el.classList.contains('child-card');
+    const prefix = isChild ? '  ' : '';
+    if (name) {
+      text += prefix + '● ' + name.textContent.trim();
+      if (tag) text += ' [' + tag.textContent.trim() + ']';
+      text += '\n';
+    }
+    if (content) {
+      text += formatExportContentText(content.innerHTML, prefix + '  ') + '\n';
+    } else if (empty) {
+      text += prefix + '  ' + empty.textContent.trim() + '\n';
+    }
+    text += '\n';
+  });
+  const html = buildExportClipboardHTML(title, subtitle, body);
+  if (copyRichContentToClipboard(html, text)) {
+    showToast('已复制到剪贴板');
+    return;
+  }
+  if (navigator.clipboard?.write && window.ClipboardItem) {
+    const item = new ClipboardItem({
+      'text/plain': new Blob([text], { type: 'text/plain' }),
+      'text/html': new Blob([html], { type: 'text/html' }),
+    });
+    navigator.clipboard.write([item]).then(() => {
+      showToast('已复制到剪贴板');
+    }).catch(() => {
+      navigator.clipboard.writeText(text).then(() => {
+        showToast('已复制到剪贴板');
+      }).catch(() => {
+        showToast('复制失败');
+      });
+    });
+    return;
+  }
+  navigator.clipboard.writeText(text).then(() => {
+    showToast('已复制到剪贴板');
+  }).catch(() => {
+    showToast('复制失败');
+  });
+}
+function copyRichContentToClipboard(html, text) {
+  if (!document.queryCommandSupported || !document.queryCommandSupported('copy')) return false;
+  const copyListener = (e) => {
+    e.preventDefault();
+    e.clipboardData?.setData('text/html', html);
+    e.clipboardData?.setData('text/plain', text);
+  };
+  document.addEventListener('copy', copyListener, { once: true });
+  const host = document.createElement('div');
+  host.contentEditable = 'true';
+  host.setAttribute('aria-hidden', 'true');
+  host.style.position = 'fixed';
+  host.style.left = '-99999px';
+  host.style.top = '0';
+  host.style.opacity = '0';
+  host.innerHTML = html;
+  document.body.appendChild(host);
+  const selection = window.getSelection();
+  const ranges = [];
+  if (selection) {
+    for (let i = 0; i < selection.rangeCount; i++) ranges.push(selection.getRangeAt(i).cloneRange());
+  }
+  const range = document.createRange();
+  range.selectNodeContents(host);
+  selection?.removeAllRanges();
+  selection?.addRange(range);
+  let copied = false;
+  try {
+    copied = document.execCommand('copy');
+  } catch (e) {
+    copied = false;
+  }
+  selection?.removeAllRanges();
+  ranges.forEach(r => selection?.addRange(r));
+  host.remove();
+  if (!copied) document.removeEventListener('copy', copyListener);
+  return copied;
+}
+function buildExportClipboardHTML(title, subtitle, body) {
+  const wrapper = document.createElement('div');
+  wrapper.style.fontFamily = '"Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif';
+  wrapper.style.fontSize = '14px';
+  wrapper.style.lineHeight = '1.6';
+  wrapper.style.color = '#1f2937';
+  wrapper.style.maxWidth = '1000px';
+
+  const titleEl = document.createElement('div');
+  titleEl.textContent = title;
+  titleEl.style.fontSize = '20px';
+  titleEl.style.fontWeight = '700';
+  titleEl.style.marginBottom = '4px';
+  wrapper.appendChild(titleEl);
+
+  const subtitleEl = document.createElement('div');
+  subtitleEl.textContent = subtitle;
+  subtitleEl.style.fontSize = '12px';
+  subtitleEl.style.color = '#6b7280';
+  subtitleEl.style.marginBottom = '16px';
+  wrapper.appendChild(subtitleEl);
+
+  const content = body.cloneNode(true);
+  content.querySelectorAll('.detail-section').forEach(el => {
+    el.style.marginBottom = '20px';
+  });
+  content.querySelectorAll('.detail-section-title').forEach(el => {
+    el.style.fontSize = '16px';
+    el.style.fontWeight = '700';
+    el.style.margin = '18px 0 10px';
+  });
+  content.querySelectorAll('.detail-card').forEach(el => {
+    el.style.border = '1px solid #d1d5db';
+    el.style.borderRadius = '10px';
+    el.style.padding = '12px 14px';
+    el.style.marginBottom = '12px';
+    el.style.background = '#ffffff';
+  });
+  content.querySelectorAll('.detail-card.child-card').forEach(el => {
+    el.style.marginLeft = '24px';
+    el.style.borderLeft = '4px solid #4f6ef7';
+  });
+  content.querySelectorAll('.detail-card-header').forEach(el => {
+    el.style.display = 'flex';
+    el.style.alignItems = 'center';
+    el.style.gap = '8px';
+    el.style.marginBottom = '8px';
+  });
+  content.querySelectorAll('.detail-card-name').forEach(el => {
+    el.style.fontWeight = '700';
+  });
+  content.querySelectorAll('.detail-card-tag').forEach(el => {
+    el.style.display = 'inline-block';
+    el.style.padding = '2px 8px';
+    el.style.borderRadius = '999px';
+    el.style.fontSize = '12px';
+    el.style.color = '#ffffff';
+    if (el.classList.contains('tag-red')) el.style.background = '#ef4444';
+    if (el.classList.contains('tag-green')) el.style.background = '#22c55e';
+    if (el.classList.contains('tag-blue')) el.style.background = '#3b82f6';
+    if (el.classList.contains('tag-yellow')) {
+      el.style.background = '#eab308';
+      el.style.color = '#1a1d23';
+    }
+  });
+  content.querySelectorAll('.detail-card-content').forEach(el => {
+    el.style.whiteSpace = 'normal';
+  });
+  content.querySelectorAll('table').forEach(el => {
+    el.style.borderCollapse = 'collapse';
+    el.style.width = '100%';
+    el.style.margin = '8px 0';
+  });
+  content.querySelectorAll('th, td').forEach(el => {
+    el.style.border = '1px solid #cbd5e1';
+    el.style.padding = '6px 10px';
+    el.style.textAlign = 'left';
+    el.style.verticalAlign = 'top';
+  });
+  content.querySelectorAll('th').forEach(el => {
+    el.style.background = '#f3f4f6';
+    el.style.fontWeight = '700';
+  });
+  content.querySelectorAll('a').forEach(el => {
+    el.style.color = '#2563eb';
+    el.style.textDecoration = 'underline';
+  });
+  content.querySelectorAll('img').forEach(el => {
+    el.style.maxWidth = '100%';
+    el.style.height = 'auto';
+  });
+
+  wrapper.appendChild(content);
+  return wrapper.innerHTML;
+}
+function elementHasBlockChildren(el) {
+  return [...el.childNodes].some(node => node.nodeType === Node.ELEMENT_NODE && ['DIV', 'P', 'TABLE', 'UL', 'OL', 'LI'].includes(node.tagName));
+}
+function renderTableAsText(table) {
+  const rows = [...table.querySelectorAll('tr')].map(tr =>
+    [...tr.children]
+      .filter(cell => ['TH', 'TD'].includes(cell.tagName))
+      .map(cell => extractNodeText(cell).replace(/\s+/g, ' ').trim())
+  ).filter(row => row.length);
+  if (!rows.length) return '';
+  return rows.map(row => row.join('\t')).join('\n');
+}
+function extractNodeText(node, listLevel = 0) {
+  if (!node) return '';
+  if (node.nodeType === Node.TEXT_NODE) return node.nodeValue || '';
+  if (node.nodeType !== Node.ELEMENT_NODE) return '';
+  if (node.tagName === 'BR') return '\n';
+  if (node.tagName === 'TABLE') return renderTableAsText(node);
+  if (node.tagName === 'IMG') return node.getAttribute('alt')?.trim() || '[图片]';
+  if (node.tagName === 'A') {
+    const text = [...node.childNodes].map(child => extractNodeText(child, listLevel)).join('').trim();
+    const href = node.getAttribute('href') || '';
+    return text && text !== href ? `${text} (${href})` : (text || href);
+  }
+  if (node.tagName === 'UL' || node.tagName === 'OL') {
+    return [...node.children]
+      .filter(child => child.tagName === 'LI')
+      .map((li, index) => {
+        const marker = node.tagName === 'OL' ? `${index + 1}. ` : '- ';
+        return `${'  '.repeat(listLevel)}${marker}${extractNodeText(li, listLevel + 1).trim()}`;
+      })
+      .join('\n');
+  }
+  if (node.tagName === 'LI') {
+    return [...node.childNodes].map(child => extractNodeText(child, listLevel)).join('').replace(/\n{3,}/g, '\n\n').trim();
+  }
+  const childText = [...node.childNodes].map(child => extractNodeText(child, listLevel)).join('');
+  if (['P', 'DIV', 'SECTION', 'ARTICLE'].includes(node.tagName) && elementHasBlockChildren(node)) {
+    return [...node.childNodes]
+      .map(child => extractNodeText(child, listLevel).trim())
+      .filter(Boolean)
+      .join('\n\n');
+  }
+  if (['P', 'DIV', 'SECTION', 'ARTICLE'].includes(node.tagName)) return `${childText}\n`;
+  return childText;
+}
+function extractTextFromHTML(html) {
+  const d = document.createElement('div');
+  d.innerHTML = html;
+  return [...d.childNodes]
+    .map(node => extractNodeText(node).trim())
+    .filter(Boolean)
+    .join('\n\n')
+    .replace(/\n{3,}/g, '\n\n');
+}
+function formatExportContentText(html, prefix) {
+  const raw = extractTextFromHTML(html);
+  return raw
+    .split('\n')
+    .map(line => {
+      if (!line.trim()) return '';
+      if (line.includes('\t')) return line;
+      return prefix + line;
+    })
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n');
+}
+function showToast(msg) {
+  const old = document.querySelector('.copy-toast');
+  if (old) old.remove();
+  const el = document.createElement('div');
+  el.className = 'copy-toast';
+  el.textContent = msg;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 2000);
+}
+// ==================== INIT ====================
+window.addEventListener('beforeunload', (e) => {
+  if (App.dirty) {
+    e.preventDefault();
+    e.returnValue = '';
+  }
+});
+
+// Click on detail overlay to close
+document.getElementById('detailOverlay').addEventListener('click', (e) => {
+  if (e.target === document.getElementById('detailOverlay')) closeDetail();
+});
+document.getElementById('modalOverlay').addEventListener('click', (e) => {
+  if (e.target === document.getElementById('modalOverlay')) closeModal();
+});
+document.getElementById('cellEditOverlay').addEventListener('click', (e) => {
+  if (e.target === document.getElementById('cellEditOverlay')) cancelCellEdit();
+});
+window.addEventListener('resize', updateResizeHandle);
+
+document.addEventListener('keydown', (e) => {
+  if (document.getElementById('cellEditOverlay').style.display === 'flex') return;
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'c') {
+    if (!App.selectedCell) return;
+    e.preventDefault();
+    copyCell();
+    return;
+  }
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'v') {
+    if (!App.selectedCell) return;
+    e.preventDefault();
+    pasteCell();
+    return;
+  }
+  if (e.key === 'Escape' && App.selectedCell) {
+    e.preventDefault();
+    clearSelectedCell();
+  }
+});
+document.addEventListener('keydown', (e) => {
+  if (document.getElementById('cellEditOverlay').style.display !== 'flex') return;
+  if (e.key === 'Escape') {
+    e.preventDefault();
+    cancelCellEdit();
+  }
+  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+    e.preventDefault();
+    saveCellEdit();
+  }
+});
+document.addEventListener('click', (e) => {
+  if (App.editingCell) return;
+  if (e.target.closest('td.data-cell, .context-menu')) return;
+  clearSelectedCell();
+});
+
+async function initApp() {
+  const restored = await restoreLastOpenedFile();
+  if (!restored) {
+    applyTheme();
+    render();
+  }
+}
+initApp();
+</script>
+<script defer src="https://static.cloudflareinsights.com/beacon.min.js/v8c78df7c7c0f484497ecbca7046644da1771523124516" integrity="sha512-8DS7rgIrAmghBFwoOTujcf6D9rXvH8xm8JQ1Ja01h9QX8EzXldiszufYa4IFfKdLUKTTrnSFXLDkUEOTrZQ8Qg==" data-cf-beacon='{"version":"2024.11.0","token":"75124c326cb447fe934cde04713ae013","r":1,"server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
+</body>
+</html>
