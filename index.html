@@ -1022,7 +1022,7 @@ function getEffectiveCellState(mi, vi) {
   if (tag === 'green' || tag === 'yellow') return { content, exists: !!normalizeComparableContent(content), tag };
   if (tag === 'blue') {
     if (normalizeComparableContent(content)) return { content, exists: true, tag };
-    const previous = getEffectiveCellState(mi, getVersionInheritanceSourceIndex(vi));
+    const previous = getEffectiveCellState(mi, getVersionComparisonSourceIndex(vi));
     return { content: previous.content, exists: previous.exists, tag };
   }
   if (normalizeComparableContent(content)) return { content, exists: true, tag };
@@ -1033,7 +1033,7 @@ function detectAutoCellTag(key, content) {
   const [mi, vi] = key.split('|').map(Number);
   const currentContent = content || '';
   const currentHasContent = !!normalizeComparableContent(currentContent) && normalizeComparableContent(currentContent) !== '<br>';
-  const previous = getEffectiveCellState(mi, getVersionInheritanceSourceIndex(vi));
+  const previous = getEffectiveCellState(mi, getVersionComparisonSourceIndex(vi));
   if (!currentHasContent) return previous.exists ? 'red' : '';
   if (!previous.exists) return 'green';
   return normalizeComparableContent(currentContent) === normalizeComparableContent(previous.content) ? 'blue' : 'yellow';
@@ -1070,6 +1070,11 @@ function getVersionInheritanceSourceIndex(vi) {
     const inheritedVi = App.versions.indexOf(inheritedFrom);
     if (inheritedVi >= 0 && inheritedVi !== vi) return inheritedVi;
   }
+  return -1;
+}
+function getVersionComparisonSourceIndex(vi) {
+  const inheritedVi = getVersionInheritanceSourceIndex(vi);
+  if (inheritedVi >= 0) return inheritedVi;
   return vi > 0 ? vi - 1 : -1;
 }
 function getVersionInheritanceLabel(vi) {
@@ -2486,7 +2491,7 @@ function buildVersionBranchStructure() {
   const childrenMap = {};
   const roots = [];
   App.versions.forEach((_, vi) => {
-    const parentVi = getVersionInheritanceSourceIndex(vi);
+    const parentVi = getVersionComparisonSourceIndex(vi);
     if (parentVi >= 0) {
       if (!childrenMap[parentVi]) childrenMap[parentVi] = [];
       childrenMap[parentVi].push(vi);
@@ -2654,6 +2659,7 @@ function exportDetail() {
     }
     const name = el.querySelector('.detail-card-name');
     const tag = el.querySelector('.detail-card-tag');
+    const inherited = el.querySelector('.detail-card-inherited');
     const content = el.querySelector('.detail-card-content');
     const empty = el.querySelector('.detail-card-empty');
     const isChild = el.classList.contains('child-card');
@@ -2662,6 +2668,9 @@ function exportDetail() {
       text += prefix + '● ' + name.textContent.trim();
       if (tag) text += ' [' + tag.textContent.trim() + ']';
       text += '\n';
+    }
+    if (inherited) {
+      text += prefix + '  ' + inherited.textContent.trim() + '\n';
     }
     if (content) {
       text += formatExportContentText(content.innerHTML, prefix + '  ') + '\n';
@@ -2785,6 +2794,12 @@ function buildExportClipboardHTML(title, subtitle, body) {
   });
   content.querySelectorAll('.detail-card-name').forEach(el => {
     el.style.fontWeight = '700';
+  });
+  content.querySelectorAll('.detail-card-inherited').forEach(el => {
+    el.style.fontSize = '12px';
+    el.style.color = '#6b7280';
+    el.style.fontStyle = 'italic';
+    el.style.marginBottom = '8px';
   });
   content.querySelectorAll('.detail-card-tag').forEach(el => {
     el.style.display = 'inline-block';
