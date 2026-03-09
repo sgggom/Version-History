@@ -117,6 +117,59 @@ td.data-cell.selected-cell {
   font-weight: 500;
   opacity: 0.82;
 }
+.grid-col-resize-handle,
+.grid-row-resize-handle {
+  position: absolute;
+  z-index: 6;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+.module-header:hover .grid-col-resize-handle,
+.version-header:hover .grid-row-resize-handle,
+.grid-resizing .grid-col-resize-handle,
+.grid-resizing .grid-row-resize-handle {
+  opacity: 1;
+}
+.grid-col-resize-handle {
+  top: 6px;
+  right: -4px;
+  width: 8px;
+  height: calc(100% - 12px);
+  cursor: col-resize;
+}
+.grid-col-resize-handle::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 2px;
+  height: 100%;
+  transform: translateX(-50%);
+  background: var(--accent);
+  border-radius: 999px;
+}
+.grid-row-resize-handle {
+  left: 8px;
+  bottom: -4px;
+  width: calc(100% - 16px);
+  height: 8px;
+  cursor: row-resize;
+}
+.grid-row-resize-handle::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  width: 100%;
+  height: 2px;
+  transform: translateY(-50%);
+  background: var(--accent);
+  border-radius: 999px;
+}
+.grid-resizing,
+.grid-resizing * {
+  user-select: none !important;
+}
 /* Cell tag background tints */
 td.data-cell { position: relative; overflow: hidden; }
 td.tag-red { background: rgba(239,68,68,0.08); }
@@ -456,11 +509,29 @@ td.tag-yellow { background: rgba(234,179,8,0.10); }
   padding: 8px 12px; border: 1px solid var(--border);
   border-radius: 10px; background: var(--surface);
 }
+.branch-node.branch-node-compact .branch-node-head {
+  padding: 6px 10px;
+  border-radius: 8px;
+  opacity: 0.92;
+}
 .branch-node-name { font-size: 13px; font-weight: 600; color: var(--text); }
 .branch-node-meta { font-size: 11px; color: var(--text-secondary); }
 .branch-children {
   margin-left: 18px; padding-left: 16px; margin-top: 8px;
   border-left: 2px solid var(--border); display: flex; flex-direction: column; gap: 8px;
+}
+.branch-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.branch-group > .branch-node + .branch-node {
+  margin-top: 0;
+}
+.branch-group-label {
+  font-size: 11px;
+  color: var(--text-secondary);
+  padding-left: 4px;
 }
 .branch-empty {
   font-size: 13px; color: var(--text-secondary); font-style: italic;
@@ -617,6 +688,7 @@ let modalOptions = null;
 let savedSelection = null;
 let activeResizableElement = null;
 let resizeSession = null;
+let gridResizeSession = null;
 const HANDLE_DB_NAME = 'version-tracker-handles';
 const HANDLE_STORE_NAME = 'handles';
 const LAST_OPEN_HANDLE_KEY = 'last-open-handle';
@@ -1081,6 +1153,48 @@ function getVersionInheritanceLabel(vi) {
   const inheritedFrom = getVersionMeta(vi).inheritedFrom || '';
   return inheritedFrom ? `继承自 ${inheritedFrom}` : '';
 }
+function getStoredHeaderDimension(type, idx, prop, minValue) {
+  const store = type === 'module' ? App.moduleStyles : App.versionStyles;
+  const raw = Number(store[idx]?.[prop]);
+  return Number.isFinite(raw) && raw >= minValue ? raw : null;
+}
+function getModuleColumnWidth(mi) {
+  return getStoredHeaderDimension('module', mi, 'width', 120);
+}
+function getVersionRowHeight(vi) {
+  return getStoredHeaderDimension('version', vi, 'height', 52);
+}
+function buildModuleHeaderStyleAttr(mi) {
+  const style = App.moduleStyles[mi] || {};
+  const parts = [];
+  if (style.color) parts.push(`color:${style.color}`);
+  if (style.bg) parts.push(`background:${style.bg}`);
+  const width = getModuleColumnWidth(mi);
+  if (width) parts.push(`width:${width}px`, `min-width:${width}px`, `max-width:${width}px`);
+  return parts.length ? `style="${parts.join(';')}"` : '';
+}
+function buildVersionHeaderStyleAttr(vi) {
+  const style = App.versionStyles[vi] || {};
+  const parts = [];
+  if (style.color) parts.push(`color:${style.color}`);
+  if (style.bg) parts.push(`background:${style.bg}`);
+  const height = getVersionRowHeight(vi);
+  if (height) parts.push(`height:${height}px`, `min-height:${height}px`);
+  return parts.length ? `style="${parts.join(';')}"` : '';
+}
+function buildDataCellStyleAttr(mi, vi) {
+  const parts = [];
+  const width = getModuleColumnWidth(mi);
+  const height = getVersionRowHeight(vi);
+  if (width) parts.push(`width:${width}px`, `min-width:${width}px`, `max-width:${width}px`);
+  if (height) parts.push(`height:${height}px`);
+  return parts.length ? `style="${parts.join(';')}"` : '';
+}
+function buildCellContentStyleAttr(vi) {
+  const height = getVersionRowHeight(vi);
+  if (!height) return '';
+  return `style="min-height:${Math.max(38, height - 16)}px"`;
+}
 function versionIdentityExists(baseName, suffix, ignoreVi = null) {
   const normalizedBase = (baseName || '').trim();
   const normalizedSuffix = normalizeVersionSuffix(suffix);
@@ -1365,29 +1479,27 @@ function render() {
     const isChild = App.moduleParents[mi] !== undefined;
     const hasChildren = getChildren(mi).length > 0;
     const isCollapsed = App.collapsedModules.has(mi);
-    const ms = App.moduleStyles[mi];
-    const style = ms ? `style="color:${ms.color||''};background:${ms.bg||''}"` : '';
+    const style = buildModuleHeaderStyleAttr(mi);
     const headerClass = isChild ? 'module-header module-header-child' : 'module-header module-header-parent';
-    html += `<th class="${headerClass}" data-mi="${mi}" ${style} oncontextmenu="showModuleCtx(event,${mi})" onclick="showModuleDetail(${mi})">`;
+    html += `<th class="${headerClass}" data-mi="${mi}" data-col-mi="${mi}" ${style} oncontextmenu="showModuleCtx(event,${mi})" onclick="showModuleDetail(${mi})">`;
     html += '<span class="module-header-text">';
     if (isChild) html += '<span style="color:var(--text-secondary);">└</span>';
     if (hasChildren) {
       html += `<button class="collapse-btn" onclick="event.stopPropagation();toggleCollapse(${mi})" title="${isCollapsed ? '展开子节点' : '折叠子节点'}">${isCollapsed ? '▶' : '▼'}</button>`;
     }
     html += `<span>${esc(m)}</span>`;
-    html += '</span></th>';
+    html += `</span><span class="grid-col-resize-handle" onclick="event.stopPropagation()" onmousedown="startColumnResize(event,${mi})"></span></th>`;
   });
   html += '</tr></thead><tbody>';
   versionOrder.forEach(vi => {
     const v = App.versions[vi];
-    const vs = App.versionStyles[vi];
-    const style = vs ? `style="color:${vs.color||''};background:${vs.bg||''}"` : '';
+    const style = buildVersionHeaderStyleAttr(vi);
     html += `<tr data-vi="${vi}">`;
     const inheritLabel = getVersionInheritanceLabel(vi);
-    html += `<th class="version-header" data-vi="${vi}" ${style} oncontextmenu="showVersionCtx(event,${vi})" onclick="showVersionDetail(${vi})">`;
+    html += `<th class="version-header" data-vi="${vi}" data-row-vi="${vi}" ${style} oncontextmenu="showVersionCtx(event,${vi})" onclick="showVersionDetail(${vi})">`;
     html += `<div class="version-header-main">${esc(v)}</div>`;
     if (inheritLabel) html += `<div class="version-header-sub">${esc(inheritLabel)}</div>`;
-    html += '</th>';
+    html += `<span class="grid-row-resize-handle" onclick="event.stopPropagation()" onmousedown="startRowResize(event,${vi})"></span></th>`;
     displayOrder.forEach(mi => {
       const m = App.modules[mi];
       if (!m) return;
@@ -1401,8 +1513,8 @@ function render() {
       else if (content.trim()) cls += ' has-content';
       if (isEditing) cls += ' cell-editing';
       if (isSelected) cls += ' selected-cell';
-      html += `<td class="${cls}" data-key="${key}" onclick="selectCell('${key}')" ondblclick="startEdit('${key}')" oncontextmenu="showCellCtx(event,'${key}')">`;
-      html += `<div class="cell-content">${content}</div>`;
+      html += `<td class="${cls}" data-key="${key}" data-col-mi="${mi}" data-row-vi="${vi}" ${buildDataCellStyleAttr(mi, vi)} onclick="selectCell('${key}')" ondblclick="startEdit('${key}')" oncontextmenu="showCellCtx(event,'${key}')">`;
+      html += `<div class="cell-content" ${buildCellContentStyleAttr(vi)}>${content}</div>`;
       html += '</td>';
     });
     html += '</tr>';
@@ -1410,6 +1522,101 @@ function render() {
   html += '</tbody>';
   table.innerHTML = html;
   syncSelectedCellUI();
+}
+function ensureHeaderStyleStore(type, idx) {
+  const store = type === 'module' ? App.moduleStyles : App.versionStyles;
+  if (!store[idx]) store[idx] = {};
+  return store[idx];
+}
+function setHeaderDimension(type, idx, prop, value) {
+  const style = ensureHeaderStyleStore(type, idx);
+  style[prop] = value;
+}
+function cleanupHeaderStyle(type, idx) {
+  const store = type === 'module' ? App.moduleStyles : App.versionStyles;
+  const style = store[idx];
+  if (!style) return;
+  Object.keys(style).forEach(key => {
+    if (style[key] === undefined || style[key] === null || style[key] === '') delete style[key];
+  });
+  if (!Object.keys(style).length) delete store[idx];
+}
+function applyColumnWidthToDOM(mi, width) {
+  document.querySelectorAll(`#mainTable [data-col-mi="${mi}"]`).forEach(el => {
+    el.style.width = `${width}px`;
+    el.style.minWidth = `${width}px`;
+    el.style.maxWidth = `${width}px`;
+  });
+}
+function applyRowHeightToDOM(vi, height) {
+  document.querySelectorAll(`#mainTable [data-row-vi="${vi}"]`).forEach(el => {
+    el.style.height = `${height}px`;
+    el.style.minHeight = `${height}px`;
+  });
+  document.querySelectorAll(`#mainTable td.data-cell[data-row-vi="${vi}"] .cell-content`).forEach(el => {
+    el.style.minHeight = `${Math.max(38, height - 16)}px`;
+  });
+}
+function stopGridResize() {
+  if (!gridResizeSession) return;
+  document.removeEventListener('mousemove', handleGridResizeMove);
+  document.removeEventListener('mouseup', stopGridResize);
+  document.body.classList.remove('grid-resizing');
+  document.body.style.cursor = '';
+  const { type, idx, value, initialValue } = gridResizeSession;
+  cleanupHeaderStyle(type, idx);
+  if (value !== initialValue) markDirty();
+  gridResizeSession = null;
+}
+function handleGridResizeMove(e) {
+  if (!gridResizeSession) return;
+  if (gridResizeSession.type === 'module') {
+    const next = Math.max(gridResizeSession.min, Math.round(gridResizeSession.startValue + (e.clientX - gridResizeSession.startX)));
+    gridResizeSession.value = next;
+    setHeaderDimension('module', gridResizeSession.idx, 'width', next);
+    applyColumnWidthToDOM(gridResizeSession.idx, next);
+    return;
+  }
+  const next = Math.max(gridResizeSession.min, Math.round(gridResizeSession.startValue + (e.clientY - gridResizeSession.startY)));
+  gridResizeSession.value = next;
+  setHeaderDimension('version', gridResizeSession.idx, 'height', next);
+  applyRowHeightToDOM(gridResizeSession.idx, next);
+}
+function startColumnResize(e, mi) {
+  e.preventDefault();
+  e.stopPropagation();
+  const startWidth = getModuleColumnWidth(mi) || document.querySelector(`#mainTable th.module-header[data-mi="${mi}"]`)?.getBoundingClientRect().width || 180;
+  gridResizeSession = {
+    type: 'module',
+    idx: mi,
+    startX: e.clientX,
+    startValue: Math.round(startWidth),
+    initialValue: Math.round(startWidth),
+    value: Math.round(startWidth),
+    min: 120,
+  };
+  document.body.classList.add('grid-resizing');
+  document.body.style.cursor = 'col-resize';
+  document.addEventListener('mousemove', handleGridResizeMove);
+  document.addEventListener('mouseup', stopGridResize);
+}
+function startRowResize(e, vi) {
+  e.preventDefault();
+  e.stopPropagation();
+  const startHeight = getVersionRowHeight(vi) || document.querySelector(`#mainTable th.version-header[data-vi="${vi}"]`)?.getBoundingClientRect().height || 56;
+  gridResizeSession = {
+    type: 'version',
+    idx: vi,
+    startY: e.clientY,
+    startValue: Math.round(startHeight),
+    initialValue: Math.round(startHeight),
+    value: Math.round(startHeight),
+    min: 52,
+  };
+  document.body.classList.add('grid-resizing');
+  document.body.style.cursor = 'row-resize';
+  document.addEventListener('mousemove', handleGridResizeMove);
+  document.addEventListener('mouseup', stopGridResize);
 }
 function esc(s) {
   const d = document.createElement('div');
@@ -1985,7 +2192,15 @@ function setHeaderStyle(type, idx, prop, value) {
 }
 function clearHeaderStyle(type, idx) {
   const store = type === 'module' ? App.moduleStyles : App.versionStyles;
-  delete store[idx];
+  if (!store[idx]) return;
+  const hadColorStyle = !!(store[idx].color || store[idx].bg);
+  if (!hadColorStyle) {
+    hideContextMenu();
+    return;
+  }
+  delete store[idx].color;
+  delete store[idx].bg;
+  cleanupHeaderStyle(type, idx);
   markDirty();
   hideContextMenu();
   render();
@@ -2548,19 +2763,51 @@ function buildVersionBranchStructure() {
   Object.values(childrenMap).forEach(list => list.sort((a, b) => a - b));
   return { roots, childrenMap };
 }
-function renderModuleBranchNodeHTML(mi, vi, childrenMap, visited) {
+function getBranchVersionGroupKey(vi) {
+  const meta = getVersionMeta(vi);
+  return (meta.baseName || App.versions[vi] || '').trim() || `version-${vi}`;
+}
+function groupBranchVersionSiblings(vis) {
+  const groups = [];
+  const byKey = new Map();
+  vis.forEach(vi => {
+    const key = getBranchVersionGroupKey(vi);
+    let group = byKey.get(key);
+    if (!group) {
+      group = { key, items: [] };
+      byKey.set(key, group);
+      groups.push(group);
+    }
+    group.items.push(vi);
+  });
+  return groups;
+}
+function renderModuleBranchChildrenHTML(mi, vis, childrenMap, visited) {
+  if (!vis.length) return '';
+  return groupBranchVersionSiblings(vis).map(group => {
+    if (group.items.length === 1) return renderModuleBranchNodeHTML(mi, group.items[0], childrenMap, visited);
+    let html = '<div class="branch-group">';
+    html += `<div class="branch-group-label">${esc(group.key)}</div>`;
+    html += group.items.map(vi => renderModuleBranchNodeHTML(mi, vi, childrenMap, visited, { grouped: true })).join('');
+    html += '</div>';
+    return html;
+  }).join('');
+}
+function renderModuleBranchNodeHTML(mi, vi, childrenMap, visited, options = {}) {
   if (visited.has(vi)) return '';
   visited.add(vi);
   const key = mi + '|' + vi;
   const tag = App.tags[key] || '';
   const inheritedLabel = getVersionInheritanceLabel(vi);
-  let html = '<div class="branch-node">';
+  const childVis = childrenMap[vi] || [];
+  const isCompact = options.grouped && childVis.length === 0;
+  let html = `<div class="branch-node${isCompact ? ' branch-node-compact' : ''}">`;
   html += '<div class="branch-node-head">';
   html += `<span class="branch-node-name">${esc(App.versions[vi])}</span>`;
   if (tag) html += `<span class="detail-card-tag tag-${tag}">${esc(TAG_LABELS[tag])}</span>`;
   if (inheritedLabel) html += `<span class="branch-node-meta">${esc(inheritedLabel)}</span>`;
   html += '</div>';
-  const children = (childrenMap[vi] || []).map(childVi => renderModuleBranchNodeHTML(mi, childVi, childrenMap, visited)).join('');
+  const children = renderModuleBranchChildrenHTML(mi, childVis, childrenMap, visited);
   if (children) html += `<div class="branch-children">${children}</div>`;
   html += '</div>';
   return html;
@@ -2569,8 +2816,11 @@ function buildModuleBranchTreeHTML(mi) {
   if (!App.versions.length) return '<div class="branch-empty">暂无版本分支</div>';
   const { roots, childrenMap } = buildVersionBranchStructure();
   const visited = new Set();
-  const html = roots.map(vi => renderModuleBranchNodeHTML(mi, vi, childrenMap, visited)).join('');
+  const html = renderModuleBranchChildrenHTML(mi, roots, childrenMap, visited);
   return html || '<div class="branch-empty">暂无版本分支</div>';
+}
+function shouldRenderDetailCard(tag) {
+  return !!tag;
 }
 // ==================== DETAIL VIEWS ====================
 function showVersionDetail(vi) {
@@ -2584,15 +2834,14 @@ function showVersionDetail(vi) {
     const key = mi + '|' + vi;
     const content = getVersionDetailDisplayContent(mi, vi);
     const tag = App.tags[key] || '';
+    if (!shouldRenderDetailCard(tag)) return;
     const mName = App.modules[mi];
     const isChild = App.moduleParents[mi] !== undefined;
     const cardClass = isChild ? 'detail-card child-card' : 'detail-card';
     html += `<div class="${cardClass}">`;
     html += '<div class="detail-card-header">';
     html += `<span class="detail-card-name">${esc(mName)}</span>`;
-    if (tag) {
-      html += `<span class="detail-card-tag tag-${tag}">${esc(TAG_LABELS[tag])}</span>`;
-    }
+    html += `<span class="detail-card-tag tag-${tag}">${esc(TAG_LABELS[tag])}</span>`;
     html += '</div>';
     if (content.trim()) {
       html += `<div class="detail-card-content">${renderDisplayContentHTML(content)}</div>`;
@@ -2603,6 +2852,9 @@ function showVersionDetail(vi) {
   });
   if (!html) html = '<div class="detail-card-empty">无功能模块</div>';
   body.innerHTML = html;
+  if (!body.querySelector('.detail-card')) {
+    body.innerHTML = '<div class="detail-card-empty">无已标记内容</div>';
+  }
   document.getElementById('detailOverlay').style.display = 'flex';
 }
 
@@ -2619,19 +2871,20 @@ function showModuleDetail(mi) {
   const body = document.getElementById('detailBody');
   let html = '';
   // This module's versions
-  html += '<div class="detail-section">';
+  html += '<div class="detail-section" data-detail-section="versions">';
   html += `<div class="detail-section-title">版本记录</div>`;
   getVersionDisplayOrder().forEach(vi => {
     const v = App.versions[vi];
     const key = mi + '|' + vi;
     const content = getEffectiveCellState(mi, vi).content || '';
     const tag = App.tags[key] || '';
+    if (!shouldRenderDetailCard(tag)) return;
     const directContent = App.cells[key] || '';
     const inheritLabel = tag === 'blue' && !normalizeComparableContent(directContent) ? getVersionInheritanceLabel(vi) : '';
     html += '<div class="detail-card">';
     html += '<div class="detail-card-header">';
     html += `<span class="detail-card-name">${esc(v)}</span>`;
-    if (tag) html += `<span class="detail-card-tag tag-${tag}">${esc(TAG_LABELS[tag])}</span>`;
+    html += `<span class="detail-card-tag tag-${tag}">${esc(TAG_LABELS[tag])}</span>`;
     html += '</div>';
     if (inheritLabel) html += `<div class="detail-card-inherited">${esc(inheritLabel)}</div>`;
     if (content.trim()) {
@@ -2642,29 +2895,30 @@ function showModuleDetail(mi) {
     html += '</div>';
   });
   html += '</div>';
-  html += '<div class="detail-section">';
+  html += '<div class="detail-section" data-detail-section="branch">';
   html += '<div class="detail-section-title">功能改动分支查看</div>';
   html += `<div class="branch-tree">${buildModuleBranchTreeHTML(mi)}</div>`;
   html += '</div>';
   // Children sections
   const kids = getChildren(mi);
   if (kids.length > 0) {
-    html += '<div class="detail-section">';
+    html += '<div class="detail-section" data-detail-section="children">';
     html += '<div class="detail-section-title">子节点</div>';
     kids.forEach(ki => {
-      html += `<div style="margin-bottom:16px;">`;
+      html += `<div class="detail-child-module" style="margin-bottom:16px;">`;
       html += `<div style="font-size:14px;font-weight:600;color:var(--text);margin-bottom:8px;padding-left:6px;border-left:3px solid var(--accent);">${esc(App.modules[ki])}</div>`;
       getVersionDisplayOrder().forEach(vi => {
         const v = App.versions[vi];
         const key = ki + '|' + vi;
         const content = getEffectiveCellState(ki, vi).content || '';
         const tag = App.tags[key] || '';
+        if (!shouldRenderDetailCard(tag)) return;
         const directContent = App.cells[key] || '';
         const inheritLabel = tag === 'blue' && !normalizeComparableContent(directContent) ? getVersionInheritanceLabel(vi) : '';
         html += '<div class="detail-card child-card">';
         html += '<div class="detail-card-header">';
         html += `<span class="detail-card-name">${esc(v)}</span>`;
-        if (tag) html += `<span class="detail-card-tag tag-${tag}">${esc(TAG_LABELS[tag])}</span>`;
+        html += `<span class="detail-card-tag tag-${tag}">${esc(TAG_LABELS[tag])}</span>`;
         html += '</div>';
         if (inheritLabel) html += `<div class="detail-card-inherited">${esc(inheritLabel)}</div>`;
         if (content.trim()) {
@@ -2679,6 +2933,15 @@ function showModuleDetail(mi) {
     html += '</div>';
   }
   body.innerHTML = html;
+  const versionSection = body.querySelector('[data-detail-section="versions"]');
+  if (versionSection && !versionSection.querySelector('.detail-card')) {
+    versionSection.insertAdjacentHTML('beforeend', '<div class="detail-card-empty">无已标记内容</div>');
+  }
+  body.querySelectorAll('.detail-child-module').forEach(el => {
+    if (!el.querySelector('.detail-card')) el.remove();
+  });
+  const childSection = body.querySelector('[data-detail-section="children"]');
+  if (childSection && !childSection.querySelector('.detail-card')) childSection.remove();
   document.getElementById('detailOverlay').style.display = 'flex';
 }
 
