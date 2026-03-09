@@ -1727,9 +1727,14 @@ function handlePaste(e) {
     return;
   }
   const html = e.clipboardData.getData('text/html');
+  const plainText = e.clipboardData.getData('text/plain');
   if (html) {
     e.preventDefault();
-    document.execCommand('insertHTML', false, cleanPastedHTML(html));
+    if (shouldPreferPlainTextPaste(html, plainText)) {
+      insertPlainTextAtCursor(plainText);
+    } else {
+      document.execCommand('insertHTML', false, cleanPastedHTML(html));
+    }
     requestAnimationFrame(() => {
       prepareResizableElements();
       syncEditingDraft();
@@ -1739,6 +1744,47 @@ function handlePaste(e) {
 }
 function cleanPastedHTML(html) {
   return normalizeContentHTML(html);
+}
+function normalizeClipboardComparableText(text) {
+  return String(text || '')
+    .replace(/\r\n?/g, '\n')
+    .replace(/\u00a0/g, ' ')
+    .replace(/[ \t]+\n/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+function shouldPreferPlainTextPaste(html, plainText) {
+  const normalizedPlain = normalizeClipboardComparableText(plainText);
+  if (!normalizedPlain) return false;
+  const cleanedHtml = cleanPastedHTML(html);
+  const normalizedHtmlText = normalizeClipboardComparableText(extractTextFromHTML(cleanedHtml));
+  if (!normalizedHtmlText) return true;
+  const hasTable = /<table[\s>]/i.test(cleanedHtml);
+  if (normalizedPlain.length < 24) return false;
+  if (hasTable && normalizedPlain !== normalizedHtmlText && normalizedPlain.includes(normalizedHtmlText)) return true;
+  if (normalizedPlain.includes(normalizedHtmlText) && normalizedHtmlText.length < normalizedPlain.length * 0.85) return true;
+  return normalizedHtmlText.length < normalizedPlain.length * 0.65;
+}
+function insertPlainTextAtCursor(text) {
+  const normalizedText = String(text || '').replace(/\r\n?/g, '\n');
+  if (!normalizedText) return;
+  if (document.queryCommandSupported?.('insertText')) {
+    document.execCommand('insertText', false, normalizedText);
+    return;
+  }
+  const selection = window.getSelection();
+  const range = selection?.rangeCount ? selection.getRangeAt(0) : null;
+  if (!range) return;
+  range.deleteContents();
+  const fragment = document.createDocumentFragment();
+  normalizedText.split('\n').forEach((line, index) => {
+    if (index > 0) fragment.appendChild(document.createElement('br'));
+    fragment.appendChild(document.createTextNode(line));
+  });
+  range.insertNode(fragment);
+  range.collapse(false);
+  selection?.removeAllRanges();
+  selection?.addRange(range);
 }
 function execFmt(e, cmd) {
   e.preventDefault();
@@ -2767,6 +2813,19 @@ function buildExportClipboardHTML(title, subtitle, body) {
   wrapper.appendChild(subtitleEl);
 
   const content = body.cloneNode(true);
+  content.querySelectorAll('.detail-card-content table').forEach(table => {
+    const text = renderTableAsText(table);
+    const block = document.createElement('div');
+    block.style.margin = '8px 0';
+    block.style.padding = '8px 10px';
+    block.style.border = '1px solid #cbd5e1';
+    block.style.borderRadius = '8px';
+    block.style.background = '#f8fafc';
+    block.style.whiteSpace = 'pre-wrap';
+    block.style.fontFamily = '"Cascadia Mono", Consolas, monospace';
+    block.textContent = text;
+    table.replaceWith(block);
+  });
   content.querySelectorAll('.detail-section').forEach(el => {
     el.style.marginBottom = '20px';
   });
