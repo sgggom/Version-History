@@ -58,6 +58,19 @@ input { font-family: inherit; font-size: 14px; }
 }
 .theme-btn:hover { color: var(--text); }
 .theme-btn.active { background: var(--accent); color: #fff; }
+.help-btn {
+  width: 30px;
+  height: 30px;
+  padding: 0 !important;
+  border-radius: 999px !important;
+  justify-content: center;
+  font-weight: 700;
+  color: var(--accent) !important;
+  border: 1px solid var(--border) !important;
+}
+.help-btn:hover {
+  border-color: var(--accent) !important;
+}
 
 /* === TABLE === */
 .main-content { flex: 1; display: flex; flex-direction: column; overflow: hidden; background: var(--bg); }
@@ -546,6 +559,55 @@ td.tag-yellow { background: rgba(234,179,8,0.10); }
 }
 .detail-export-btn:hover { background: var(--accent-hover); }
 .detail-export-btn svg { flex-shrink: 0; }
+.help-panel {
+  background: var(--modal-bg);
+  border-radius: 14px;
+  width: min(760px, calc(100vw - 40px));
+  max-height: min(80vh, calc(100vh - 40px));
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+}
+.help-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 18px 22px;
+  border-bottom: 1px solid var(--border);
+}
+.help-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text);
+}
+.help-body {
+  padding: 20px 22px 24px;
+  overflow-y: auto;
+  color: var(--text);
+  line-height: 1.7;
+}
+.help-section + .help-section {
+  margin-top: 18px;
+}
+.help-section h3 {
+  font-size: 14px;
+  margin-bottom: 8px;
+  color: var(--text);
+}
+.help-section p,
+.help-section li {
+  font-size: 13px;
+  color: var(--text);
+}
+.help-section ul,
+.help-section ol {
+  padding-left: 18px;
+}
+.help-section li + li,
+.help-section p + p {
+  margin-top: 6px;
+}
 
 /* === TOAST === */
 .copy-toast {
@@ -573,6 +635,7 @@ td.tag-yellow { background: rgba(234,179,8,0.10); }
     <span class="dirty-indicator" id="dirtyDot" style="display:none;">●</span>
   </div>
   <div class="toolbar-right">
+    <button class="help-btn" onclick="openHelp()" title="使用说明">?</button>
     <span class="theme-label">主题</span>
     <div class="theme-switcher">
       <button class="theme-btn active" data-theme="light" onclick="setTheme('light')">白天</button>
@@ -626,6 +689,57 @@ td.tag-yellow { background: rgba(234,179,8,0.10); }
       </div>
     </div>
     <div class="detail-body" id="detailBody"></div>
+  </div>
+</div>
+
+<!-- Help Overlay -->
+<div class="detail-overlay" id="helpOverlay" style="display:none;">
+  <div class="help-panel">
+    <div class="help-header">
+      <div class="help-title">工具用法</div>
+      <button class="detail-close" onclick="closeHelp()">×</button>
+    </div>
+    <div class="help-body">
+      <div class="help-section">
+        <h3>基础操作</h3>
+        <ul>
+          <li>左上角可新建、打开、保存项目，项目名可直接点击修改。</li>
+          <li>使用 `添加版本` 和 `添加功能` 维护主表；版本支持设置继承来源和 A/B/合并后缀。</li>
+          <li>单击单元格选中，双击编辑；`Ctrl/Cmd + Enter` 保存，`Esc` 取消。</li>
+        </ul>
+      </div>
+      <div class="help-section">
+        <h3>标签与继承</h3>
+        <ul>
+          <li>绿色是新增，黄色是改动，蓝色是未修改，红色是删除。</li>
+          <li>不手动改标签时，系统会按版本继承来源自动判断标签。</li>
+          <li>详情面板和导出只展示带标签的记录。</li>
+        </ul>
+      </div>
+      <div class="help-section">
+        <h3>查看与导出</h3>
+        <ul>
+          <li>点击版本表头查看该版本详情，点击功能表头查看该功能跨版本记录和分支视图。</li>
+          <li>详情右上角 `导出` 会复制当前详情，适合粘贴到文档或消息。</li>
+        </ul>
+      </div>
+      <div class="help-section">
+        <h3>编辑内容</h3>
+        <ul>
+          <li>支持富文本、列表、链接、图片、表格粘贴。</li>
+          <li>编辑弹窗中可选中图片或表格并拖动手柄调整尺寸。</li>
+          <li>主表中可拖动模块表头右侧手柄调列宽，拖动版本表头底部手柄调行高。</li>
+        </ul>
+      </div>
+      <div class="help-section">
+        <h3>推荐流程</h3>
+        <ol>
+          <li>先建立版本顺序和功能树。</li>
+          <li>再逐版本填写改动内容，并设置正确继承来源。</li>
+          <li>最后从详情面板导出版本说明或功能变更说明。</li>
+        </ol>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -1907,10 +2021,6 @@ function handleEditorKey(e, key) {
     e.preventDefault();
     saveCellEdit();
   }
-  if (e.key === 'Tab' && !e.shiftKey) {
-    e.preventDefault();
-    saveCellEdit(getCellEditMeta(key).nextKey);
-  }
 }
 function handlePaste(e) {
   const imageItem = [...(e.clipboardData?.items || [])].find(item => item.type.startsWith('image/'));
@@ -2948,9 +3058,63 @@ function showModuleDetail(mi) {
 function closeDetail() {
   document.getElementById('detailOverlay').style.display = 'none';
 }
+function populateHelpContent() {
+  const body = document.querySelector('#helpOverlay .help-body');
+  if (!body) return;
+  body.innerHTML = `
+    <div class="help-section">
+      <h3>基础操作</h3>
+      <ul>
+        <li>左上角可新建、打开、保存项目，项目名可直接点击修改。</li>
+        <li>使用 <code>添加版本</code> 和 <code>添加功能</code> 维护主表；版本支持设置继承来源和 A/B/合并后缀。</li>
+        <li>单击单元格选中，双击编辑；<code>Ctrl/Cmd + Enter</code> 保存，<code>Esc</code> 取消。</li>
+      </ul>
+    </div>
+    <div class="help-section">
+      <h3>标签与继承</h3>
+      <ul>
+        <li>绿色是新增，黄色是改动，蓝色是未修改，红色是删除。</li>
+        <li>不手动改标签时，系统会按版本继承来源自动判断标签。</li>
+        <li>详情面板和导出只展示带标签的记录。</li>
+      </ul>
+    </div>
+    <div class="help-section">
+      <h3>查看与导出</h3>
+      <ul>
+        <li>点击版本表头查看该版本详情，点击功能表头查看该功能跨版本记录和分支视图。</li>
+        <li>详情右上角 <code>导出</code> 会复制当前详情，适合粘贴到文档或消息。</li>
+      </ul>
+    </div>
+    <div class="help-section">
+      <h3>编辑内容</h3>
+      <ul>
+        <li>支持富文本、列表、链接、图片、表格粘贴。</li>
+        <li>编辑弹窗中可选中图片或表格并拖动手柄调整尺寸。</li>
+        <li>主表中可拖动模块表头右侧手柄调列宽，拖动版本表头底部手柄调行高。</li>
+      </ul>
+    </div>
+    <div class="help-section">
+      <h3>推荐流程</h3>
+      <ol>
+        <li>先建立版本顺序和功能树。</li>
+        <li>再逐版本填写改动内容，并设置正确继承来源。</li>
+        <li>最后从详情面板导出版本说明或功能变更说明。</li>
+      </ol>
+    </div>`;
+}
+function openHelp() {
+  populateHelpContent();
+  document.getElementById('helpOverlay').style.display = 'flex';
+}
+function closeHelp() {
+  document.getElementById('helpOverlay').style.display = 'none';
+}
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && document.getElementById('detailOverlay').style.display === 'flex') {
     closeDetail();
+  }
+  if (e.key === 'Escape' && document.getElementById('helpOverlay').style.display === 'flex') {
+    closeHelp();
   }
 });
 
@@ -3254,6 +3418,9 @@ window.addEventListener('beforeunload', (e) => {
 // Click on detail overlay to close
 document.getElementById('detailOverlay').addEventListener('click', (e) => {
   if (e.target === document.getElementById('detailOverlay')) closeDetail();
+});
+document.getElementById('helpOverlay').addEventListener('click', (e) => {
+  if (e.target === document.getElementById('helpOverlay')) closeHelp();
 });
 document.getElementById('modalOverlay').addEventListener('click', (e) => {
   if (e.target === document.getElementById('modalOverlay')) closeModal();
