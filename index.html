@@ -223,6 +223,26 @@ td.tag-yellow { background: rgba(234,179,8,0.10); }
   word-break: break-all;
 }
 .cell-content a:hover, .detail-card-content a:hover { color: var(--accent-hover); }
+.cell-content a.local-file-link,
+.detail-card-content a.local-file-link {
+  text-decoration-style: dashed;
+}
+.cell-content a.local-file-link[data-local-status="checking"],
+.detail-card-content a.local-file-link[data-local-status="checking"] {
+  color: var(--text-secondary);
+}
+.cell-content a.local-file-link[data-local-status="unverified"],
+.detail-card-content a.local-file-link[data-local-status="unverified"] {
+  color: var(--text-secondary);
+}
+.cell-content a.local-file-link[data-local-status="missing"],
+.detail-card-content a.local-file-link[data-local-status="missing"] {
+  color: var(--danger);
+}
+.cell-content a.local-file-link[data-local-status="ok"],
+.detail-card-content a.local-file-link[data-local-status="ok"] {
+  color: #059669;
+}
 .cell-editing { position: relative; }
 .cell-editor-wrap { position: relative; }
 .cell-editor {
@@ -803,6 +823,7 @@ let savedSelection = null;
 let activeResizableElement = null;
 let resizeSession = null;
 let gridResizeSession = null;
+const localFileLinkCheckCache = new Map();
 const HANDLE_DB_NAME = 'version-tracker-handles';
 const HANDLE_STORE_NAME = 'handles';
 const LAST_OPEN_HANDLE_KEY = 'last-open-handle';
@@ -913,8 +934,54 @@ function trimLinkTrailingPunctuation(url) {
   }
   return { url, trailing };
 }
+function normalizeProjectRelativePath(path) {
+  return String(path || '')
+    .trim()
+    .replace(/^\.?[\\/]+/, '')
+    .replace(/\\/g, '/')
+    .replace(/\/{2,}/g, '/');
+}
+function getLocalFileLinkMeta(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return null;
+  if (/^file:\/\/\//i.test(raw)) {
+    return { href: raw, rawText: raw, checkable: false, status: 'unverified' };
+  }
+  if (/^[A-Za-z]:[\\/]/.test(raw)) {
+    const href = `file:///${raw.replace(/\\/g, '/').replace(/^([A-Za-z]):/, '$1:')}`;
+    return { href, rawText: raw, checkable: false, status: 'unverified' };
+  }
+  if (/^(?:\.{1,2}[\\/]|[^\\/:*?"<>|\r\n]+[\\/])+[^\\/:*?"<>|\r\n]+\.[A-Za-z0-9]{1,10}$/.test(raw)) {
+    const relativePath = normalizeProjectRelativePath(raw);
+    if (!relativePath) return null;
+    return { href: '#', rawText: raw, relativePath, checkable: true, status: 'checking' };
+  }
+  return null;
+}
+function buildLinkElementFromText(raw) {
+  const externalHref = /^www\./i.test(raw) ? `https://${raw}` : raw;
+  const localMeta = getLocalFileLinkMeta(raw);
+  const link = document.createElement('a');
+  link.textContent = raw;
+  if (localMeta) {
+    link.href = localMeta.href;
+    link.classList.add('local-file-link');
+    link.dataset.localStatus = localMeta.status;
+    if (localMeta.relativePath) link.dataset.localRelativePath = localMeta.relativePath;
+    link.title = localMeta.checkable ? `检查中: ${localMeta.relativePath}` : raw;
+    if (!localMeta.checkable) {
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+    }
+    return link;
+  }
+  link.href = externalHref;
+  link.target = '_blank';
+  link.rel = 'noopener noreferrer';
+  return link;
+}
 function createLinkifiedFragment(text) {
-  const regex = /((?:https?:\/\/|www\.)[^\s<]+)/gi;
+  const regex = /((?:https?:\/\/|www\.)[^\s<]+|(?:file:\/\/\/[^<\r\n]+?\.[A-Za-z0-9]{1,10})|(?:[A-Za-z]:\\[^<\r\n]+?\.[A-Za-z0-9]{1,10})|(?:(?:\.{1,2}[\\/]|[^\\/:*?"<>|\r\n]+[\\/])+[^\\/:*?"<>|\r\n]+\.[A-Za-z0-9]{1,10}))/gi;
   let lastIndex = 0;
   let match = null;
   let found = false;
@@ -924,12 +991,7 @@ function createLinkifiedFragment(text) {
     const raw = match[0];
     const { url, trailing } = trimLinkTrailingPunctuation(raw);
     fragment.appendChild(document.createTextNode(text.slice(lastIndex, match.index)));
-    const link = document.createElement('a');
-    link.href = /^www\./i.test(url) ? `https://${url}` : url;
-    link.textContent = url;
-    link.target = '_blank';
-    link.rel = 'noopener noreferrer';
-    fragment.appendChild(link);
+    fragment.appendChild(buildLinkElementFromText(url));
     if (trailing) fragment.appendChild(document.createTextNode(trailing));
     lastIndex = match.index + raw.length;
   }
@@ -937,7 +999,24 @@ function createLinkifiedFragment(text) {
   fragment.appendChild(document.createTextNode(text.slice(lastIndex)));
   return fragment;
 }
-function linkifyExternalLinks(node) {
+function decorateExistingLocalFileLinks(root) {
+  root.querySelectorAll('a[href]').forEach(a => {
+    if (a.dataset.localStatus) return;
+    const href = a.getAttribute('href') || '';
+    const meta = getLocalFileLinkMeta(href);
+    if (!meta) return;
+    a.classList.add('local-file-link');
+    a.dataset.localStatus = meta.status;
+    if (meta.relativePath) a.dataset.localRelativePath = meta.relativePath;
+    a.title = meta.checkable ? `检查中: ${meta.relativePath}` : href;
+    if (meta.checkable) {
+      a.setAttribute('href', '#');
+      a.removeAttribute('target');
+      a.removeAttribute('rel');
+    }
+  });
+}
+function linkifyTextLinks(node) {
   if (!node) return;
   if (node.nodeType === Node.TEXT_NODE) {
     const fragment = createLinkifiedFragment(node.nodeValue || '');
@@ -946,13 +1025,15 @@ function linkifyExternalLinks(node) {
   }
   if (node.nodeType !== Node.ELEMENT_NODE) return;
   if (['A', 'SCRIPT', 'STYLE', 'TEXTAREA'].includes(node.tagName)) return;
-  [...node.childNodes].forEach(child => linkifyExternalLinks(child));
+  [...node.childNodes].forEach(child => linkifyTextLinks(child));
 }
 function renderDisplayContentHTML(html) {
   const temp = document.createElement('div');
   temp.innerHTML = normalizeContentHTML(html);
-  linkifyExternalLinks(temp);
+  linkifyTextLinks(temp);
+  decorateExistingLocalFileLinks(temp);
   temp.querySelectorAll('a[href]').forEach(a => {
+    if (a.classList.contains('local-file-link') && a.dataset.localRelativePath) return;
     a.setAttribute('target', '_blank');
     a.setAttribute('rel', 'noopener noreferrer');
   });
@@ -978,6 +1059,7 @@ async function ensureProjectDirHandle(promptUser) {
     const pickerOptions = persisted ? { startIn: persisted } : undefined;
     const dirHandle = pickerOptions ? await window.showDirectoryPicker(pickerOptions) : await window.showDirectoryPicker();
     App.projectDirHandle = dirHandle;
+    localFileLinkCheckCache.clear();
     await savePersistedHandle(LAST_PROJECT_DIR_HANDLE_KEY, dirHandle);
     return dirHandle;
   } catch (e) {
@@ -1024,6 +1106,85 @@ async function readAssetBlob(relativePath, retryWithPrompt = false) {
       return null;
     }
   }
+}
+async function readProjectFileBlob(relativePath, retryWithPrompt = false) {
+  const normalizedPath = normalizeProjectRelativePath(relativePath);
+  if (!normalizedPath) return null;
+  const segments = normalizedPath.split('/').filter(Boolean);
+  if (!segments.length) return null;
+  let rootDir = await ensureProjectDirHandle(false);
+  const tryRead = async (dirHandle) => {
+    let current = dirHandle;
+    for (let i = 0; i < segments.length - 1; i++) {
+      current = await current.getDirectoryHandle(segments[i]);
+    }
+    const fileHandle = await current.getFileHandle(segments[segments.length - 1]);
+    return fileHandle.getFile();
+  };
+  try {
+    if (!rootDir) throw new Error('missing-dir');
+    return await tryRead(rootDir);
+  } catch (e) {
+    if (!retryWithPrompt) return null;
+    rootDir = await ensureProjectDirHandle(true);
+    if (!rootDir) return null;
+    try {
+      return await tryRead(rootDir);
+    } catch (err) {
+      return null;
+    }
+  }
+}
+async function checkLocalRelativeFileExists(relativePath) {
+  const normalizedPath = normalizeProjectRelativePath(relativePath);
+  if (!normalizedPath) return false;
+  const cacheKey = `${App.fileHandle?.name || App.projectName || ''}|${normalizedPath.toLowerCase()}`;
+  if (localFileLinkCheckCache.has(cacheKey)) return localFileLinkCheckCache.get(cacheKey);
+  const promise = (async () => {
+    const rootDir = await ensureProjectDirHandle(false);
+    if (!rootDir) return null;
+    const segments = normalizedPath.split('/').filter(Boolean);
+    if (!segments.length) return false;
+    let current = rootDir;
+    try {
+      for (let i = 0; i < segments.length - 1; i++) {
+        current = await current.getDirectoryHandle(segments[i]);
+      }
+      await current.getFileHandle(segments[segments.length - 1]);
+      return true;
+    } catch (e) {
+      return false;
+    }
+  })();
+  localFileLinkCheckCache.set(cacheKey, promise);
+  return promise;
+}
+function applyLocalLinkStatus(link, status, title) {
+  if (!link?.isConnected) return;
+  link.dataset.localStatus = status;
+  if (title) link.title = title;
+}
+async function refreshLocalFileLinkStates(root = document) {
+  const links = [...root.querySelectorAll('a.local-file-link[data-local-relative-path]')];
+  await Promise.all(links.map(async link => {
+    const relativePath = link.dataset.localRelativePath || '';
+    applyLocalLinkStatus(link, 'checking', `检查中: ${relativePath}`);
+    const exists = await checkLocalRelativeFileExists(relativePath);
+    if (exists === null) {
+      applyLocalLinkStatus(link, 'unverified', `未验证: 需要项目目录权限 (${relativePath})`);
+      return;
+    }
+    applyLocalLinkStatus(link, exists ? 'ok' : 'missing', exists ? `文件存在: ${relativePath}` : `文件不存在: ${relativePath}`);
+  }));
+}
+async function openLocalRelativeFile(relativePath) {
+  const file = await readProjectFileBlob(relativePath, true);
+  if (!file) {
+    showToast('本地文件不存在或无法访问');
+    return;
+  }
+  const url = trackAssetObjectUrl(URL.createObjectURL(file));
+  window.open(url, '_blank', 'noopener,noreferrer');
 }
 
 function getImageExtension(blob, src, fallbackPath) {
@@ -1431,6 +1592,7 @@ function toJSON() {
 }
 function fromJSON(data) {
   revokeAssetObjectUrls();
+  localFileLinkCheckCache.clear();
   App.projectName = data.projectName || '未命名项目';
   App.versions = data.versions || [];
   App.modules = data.modules || [];
@@ -1636,6 +1798,7 @@ function render() {
   html += '</tbody>';
   table.innerHTML = html;
   syncSelectedCellUI();
+  refreshLocalFileLinkStates(table);
 }
 function ensureHeaderStyleStore(type, idx) {
   const store = type === 'module' ? App.moduleStyles : App.versionStyles;
@@ -2965,6 +3128,7 @@ function showVersionDetail(vi) {
   if (!body.querySelector('.detail-card')) {
     body.innerHTML = '<div class="detail-card-empty">无已标记内容</div>';
   }
+  refreshLocalFileLinkStates(body);
   document.getElementById('detailOverlay').style.display = 'flex';
 }
 
@@ -3052,6 +3216,7 @@ function showModuleDetail(mi) {
   });
   const childSection = body.querySelector('[data-detail-section="children"]');
   if (childSection && !childSection.querySelector('.detail-card')) childSection.remove();
+  refreshLocalFileLinkStates(body);
   document.getElementById('detailOverlay').style.display = 'flex';
 }
 
@@ -3061,7 +3226,48 @@ function closeDetail() {
 function populateHelpContent() {
   const body = document.querySelector('#helpOverlay .help-body');
   if (!body) return;
-  body.innerHTML = `
+  body.innerHTML = [
+    '<div class="help-section">',
+    '<h3>基础操作</h3>',
+    '<ul>',
+    '<li>左上角可新建、打开、保存项目，项目名可直接点击修改。</li>',
+    '<li>使用 <code>添加版本</code> 和 <code>添加功能</code> 维护主表；版本支持设置继承来源和 A/B/合并后缀。</li>',
+    '<li>单击单元格选中，双击编辑；<code>Ctrl/Cmd + Enter</code> 保存，<code>Esc</code> 取消。</li>',
+    '</ul>',
+    '</div>',
+    '<div class="help-section">',
+    '<h3>标签与继承</h3>',
+    '<ul>',
+    '<li>绿色是新增，黄色是改动，蓝色是未修改，红色是删除。</li>',
+    '<li>不手动改标签时，系统会按版本继承来源自动判断标签。</li>',
+    '<li>详情面板和导出只展示带标签的记录。</li>',
+    '</ul>',
+    '</div>',
+    '<div class="help-section">',
+    '<h3>查看与导出</h3>',
+    '<ul>',
+    '<li>点击版本表头查看该版本详情，点击功能表头查看该功能跨版本记录和分支视图。</li>',
+    '<li>详情右上角 <code>导出</code> 会复制当前详情，适合粘贴到文档或消息。</li>',
+    '</ul>',
+    '</div>',
+    '<div class="help-section">',
+    '<h3>编辑内容</h3>',
+    '<ul>',
+    '<li>支持富文本、列表、链接、图片、表格粘贴。</li>',
+    '<li>编辑弹窗中可选中图片或表格并拖动手柄调整尺寸。</li>',
+    '<li>主表中可拖动模块表头右侧手柄调列宽，拖动版本表头底部手柄调行高。</li>',
+    '</ul>',
+    '</div>',
+    '<div class="help-section">',
+    '<h3>推荐流程</h3>',
+    '<ol>',
+    '<li>先建立版本顺序和功能树。</li>',
+    '<li>再逐版本填写改动内容，并设置正确继承来源。</li>',
+    '<li>最后从详情面板导出版本说明或功能变更说明。</li>',
+    '</ol>',
+    '</div>'
+  ].join('');
+  /*
     <div class="help-section">
       <h3>基础操作</h3>
       <ul>
@@ -3101,6 +3307,7 @@ function populateHelpContent() {
         <li>最后从详情面板导出版本说明或功能变更说明。</li>
       </ol>
     </div>`;
+  */
 }
 function openHelp() {
   populateHelpContent();
@@ -3461,6 +3668,12 @@ document.addEventListener('keydown', (e) => {
   }
 });
 document.addEventListener('click', (e) => {
+  const localLink = e.target instanceof Element ? e.target.closest('a.local-file-link[data-local-relative-path]') : null;
+  if (localLink) {
+    e.preventDefault();
+    openLocalRelativeFile(localLink.dataset.localRelativePath || '');
+    return;
+  }
   if (App.editingCell) return;
   if (e.target.closest('td.data-cell, .context-menu')) return;
   clearSelectedCell();
@@ -3475,6 +3688,5 @@ async function initApp() {
 }
 initApp();
 </script>
-<script defer src="https://static.cloudflareinsights.com/beacon.min.js/v8c78df7c7c0f484497ecbca7046644da1771523124516" integrity="sha512-8DS7rgIrAmghBFwoOTujcf6D9rXvH8xm8JQ1Ja01h9QX8EzXldiszufYa4IFfKdLUKTTrnSFXLDkUEOTrZQ8Qg==" data-cf-beacon='{"version":"2024.11.0","token":"75124c326cb447fe934cde04713ae013","r":1,"server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
 </body>
 </html>
