@@ -101,6 +101,11 @@ td.data-cell.selected-cell {
 .corner-cell { background: var(--header-bg); cursor: default; }
 .version-header, .module-header { cursor: pointer; }
 .version-header:hover, .module-header:hover, tbody th:hover { filter: brightness(0.96); }
+.version-header-main { font-size: 13px; font-weight: 700; line-height: 1.3; }
+.version-header-sub {
+  margin-top: 4px; font-size: 11px; line-height: 1.3;
+  color: var(--text-secondary); font-weight: 500;
+}
 .module-header-text { display: inline-flex; align-items: center; gap: 4px; }
 .module-header-parent .module-header-text {
   font-size: 14px;
@@ -298,6 +303,17 @@ td.tag-yellow { background: rgba(234,179,8,0.10); }
   color: var(--text); outline: none; margin-bottom: 16px;
 }
 .modal-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(79,110,247,0.12); }
+.modal-field { margin-bottom: 16px; }
+.modal-field-label {
+  display: block; margin-bottom: 6px; font-size: 12px;
+  color: var(--text-secondary); font-weight: 600;
+}
+.modal-select {
+  width: 100%; padding: 8px 12px; border-radius: 6px;
+  border: 1px solid var(--input-border); background: var(--input-bg);
+  color: var(--text); outline: none;
+}
+.modal-select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(79,110,247,0.12); }
 .modal-actions { display: flex; justify-content: flex-end; gap: 8px; }
 .modal-btn {
   padding: 6px 16px; border-radius: 6px; font-size: 13px; font-weight: 500;
@@ -433,6 +449,23 @@ td.tag-yellow { background: rgba(234,179,8,0.10); }
 .detail-card-reason { font-size: 13px; color: var(--text-secondary); }
 .detail-card.child-card { margin-left: 24px; border-left: 3px solid var(--accent); }
 .detail-card-parent-label { font-size: 11px; color: var(--text-secondary); margin-bottom: 4px; }
+.branch-tree { display: flex; flex-direction: column; gap: 10px; }
+.branch-node { position: relative; padding-left: 2px; }
+.branch-node-head {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 12px; border: 1px solid var(--border);
+  border-radius: 10px; background: var(--surface);
+}
+.branch-node-name { font-size: 13px; font-weight: 600; color: var(--text); }
+.branch-node-meta { font-size: 11px; color: var(--text-secondary); }
+.branch-children {
+  margin-left: 18px; padding-left: 16px; margin-top: 8px;
+  border-left: 2px solid var(--border); display: flex; flex-direction: column; gap: 8px;
+}
+.branch-empty {
+  font-size: 13px; color: var(--text-secondary); font-style: italic;
+  padding: 10px 12px; border: 1px dashed var(--border); border-radius: 10px;
+}
 .detail-header-actions { display: flex; align-items: center; gap: 8px; }
 .detail-export-btn {
   display: inline-flex; align-items: center; gap: 5px;
@@ -503,6 +536,7 @@ td.tag-yellow { background: rgba(234,179,8,0.10); }
   <div class="modal">
     <div class="modal-title" id="modalTitle"></div>
     <input class="modal-input" id="modalInput" autocomplete="off">
+    <div id="modalExtraFields" style="display:none;"></div>
     <div class="modal-actions">
       <button class="modal-btn cancel" onclick="closeModal()">取消</button>
       <button class="modal-btn confirm" id="modalConfirm" onclick="confirmModal()">确定</button>
@@ -561,6 +595,7 @@ const App = {
   moduleParents: {},
   moduleStyles: {},
   versionStyles: {},
+  versionMeta: {},
   collapsedModules: new Set(),
   theme: 'light',
   versionSort: 'asc',
@@ -578,6 +613,7 @@ const App = {
 };
 
 let modalCallback = null;
+let modalOptions = null;
 let savedSelection = null;
 let activeResizableElement = null;
 let resizeSession = null;
@@ -972,18 +1008,7 @@ function isModuleActiveBeforeVersion(mi, beforeVi) {
   return isActive;
 }
 function getVersionDetailDisplayContent(mi, vi) {
-  const currentKey = mi + '|' + vi;
-  const currentTag = App.tags[currentKey] || '';
-  if (currentTag !== 'blue') return App.cells[currentKey] || '';
-  for (let prevVi = vi - 1; prevVi >= 0; prevVi--) {
-    const prevKey = mi + '|' + prevVi;
-    const prevTag = App.tags[prevKey] || '';
-    if (prevTag === 'red') break;
-    if (prevTag === 'yellow' || prevTag === 'green') {
-      return App.cells[prevKey] || '';
-    }
-  }
-  return '';
+  return getEffectiveCellState(mi, vi).content || '';
 }
 function normalizeComparableContent(html) {
   return normalizeContentHTML(html || '').replace(/>\s+</g, '><').trim();
@@ -997,7 +1022,7 @@ function getEffectiveCellState(mi, vi) {
   if (tag === 'green' || tag === 'yellow') return { content, exists: !!normalizeComparableContent(content), tag };
   if (tag === 'blue') {
     if (normalizeComparableContent(content)) return { content, exists: true, tag };
-    const previous = getEffectiveCellState(mi, vi - 1);
+    const previous = getEffectiveCellState(mi, getVersionInheritanceSourceIndex(vi));
     return { content: previous.content, exists: previous.exists, tag };
   }
   if (normalizeComparableContent(content)) return { content, exists: true, tag };
@@ -1008,10 +1033,57 @@ function detectAutoCellTag(key, content) {
   const [mi, vi] = key.split('|').map(Number);
   const currentContent = content || '';
   const currentHasContent = !!normalizeComparableContent(currentContent) && normalizeComparableContent(currentContent) !== '<br>';
-  const previous = getEffectiveCellState(mi, vi - 1);
+  const previous = getEffectiveCellState(mi, getVersionInheritanceSourceIndex(vi));
   if (!currentHasContent) return previous.exists ? 'red' : '';
   if (!previous.exists) return 'green';
   return normalizeComparableContent(currentContent) === normalizeComparableContent(previous.content) ? 'blue' : 'yellow';
+}
+function normalizeVersionSuffix(suffix) {
+  const trimmed = String(suffix || '').trim();
+  if (!trimmed) return '';
+  if (trimmed === '合并') return '合并';
+  if (/^[A-Za-z]$/.test(trimmed)) return trimmed.toUpperCase();
+  return trimmed;
+}
+function buildVersionDisplayName(baseName, suffix) {
+  const normalizedSuffix = normalizeVersionSuffix(suffix);
+  return `${(baseName || '').trim()}${normalizedSuffix ? ' ' + normalizedSuffix : ''}`.trim();
+}
+function parseVersionDisplayName(name) {
+  const trimmed = (name || '').trim();
+  const match = trimmed.match(/^(.*?)(?:\s+(合并|[A-Za-z]))?$/i);
+  if (!match) return { baseName: trimmed, suffix: '' };
+  const baseName = (match[1] || '').trim();
+  const suffix = normalizeVersionSuffix(match[2] || '');
+  if (baseName && suffix) return { baseName, suffix };
+  return { baseName: trimmed, suffix: '' };
+}
+function getVersionMeta(vi) {
+  const meta = App.versionMeta[vi];
+  if (meta) return { ...meta };
+  const parsed = parseVersionDisplayName(App.versions[vi] || '');
+  return { baseName: parsed.baseName, suffix: parsed.suffix, inheritedFrom: '' };
+}
+function getVersionInheritanceSourceIndex(vi) {
+  const inheritedFrom = getVersionMeta(vi).inheritedFrom || '';
+  if (inheritedFrom) {
+    const inheritedVi = App.versions.indexOf(inheritedFrom);
+    if (inheritedVi >= 0 && inheritedVi !== vi) return inheritedVi;
+  }
+  return vi > 0 ? vi - 1 : -1;
+}
+function getVersionInheritanceLabel(vi) {
+  const inheritedFrom = getVersionMeta(vi).inheritedFrom || '';
+  return inheritedFrom ? `继承自 ${inheritedFrom}` : '';
+}
+function versionIdentityExists(baseName, suffix, ignoreVi = null) {
+  const normalizedBase = (baseName || '').trim();
+  const normalizedSuffix = normalizeVersionSuffix(suffix);
+  return App.versions.some((_, vi) => {
+    if (vi === ignoreVi) return false;
+    const meta = getVersionMeta(vi);
+    return meta.baseName === normalizedBase && (meta.suffix || '') === normalizedSuffix;
+  });
 }
 function isExistingCellKey(key) {
   if (!key) return false;
@@ -1104,6 +1176,11 @@ function toJSON() {
     const n = App.versions[parseInt(i)];
     if (n) vStyles[n] = s;
   }
+  const versionMeta = {};
+  for (const [i, meta] of Object.entries(App.versionMeta)) {
+    const n = App.versions[parseInt(i)];
+    if (n && meta) versionMeta[n] = meta;
+  }
   return {
     projectName: App.projectName,
     versions: [...App.versions],
@@ -1113,6 +1190,7 @@ function toJSON() {
     moduleParents: nameParents,
     moduleStyles: mStyles,
     versionStyles: vStyles,
+    versionMeta,
     theme: App.theme,
     versionSort: App.versionSort,
     assetDirName: App.assetDirName || '',
@@ -1128,6 +1206,7 @@ function fromJSON(data) {
   App.moduleParents = {};
   App.moduleStyles = {};
   App.versionStyles = {};
+  App.versionMeta = {};
   App.collapsedModules = new Set();
   App.theme = data.theme || 'light';
   App.versionSort = data.versionSort === 'desc' ? 'desc' : 'asc';
@@ -1174,6 +1253,16 @@ function fromJSON(data) {
       if (i >= 0) App.versionStyles[i] = s;
     }
   }
+  if (data.versionMeta) {
+    for (const [n, meta] of Object.entries(data.versionMeta)) {
+      const i = App.versions.indexOf(n);
+      if (i >= 0) App.versionMeta[i] = {
+        baseName: meta.baseName || parseVersionDisplayName(n).baseName,
+        suffix: normalizeVersionSuffix(meta.suffix || ''),
+        inheritedFrom: meta.inheritedFrom || '',
+      };
+    }
+  }
   App.fileHandle = App.fileHandle;
   App.dirty = false;
   App.editingCell = null;
@@ -1183,7 +1272,7 @@ function fromJSON(data) {
 
 // ==================== REINDEX ====================
 function reindexCells(oldModules, oldVersions) {
-  const nc = {}, nt = {}, np = {}, nms = {}, nvs = {};
+  const nc = {}, nt = {}, np = {}, nms = {}, nvs = {}, nvm = {};
   // Cells & tags
   for (const [k, v] of Object.entries(App.cells)) {
     const [omi, ovi] = k.split('|').map(Number);
@@ -1219,6 +1308,18 @@ function reindexCells(oldModules, oldVersions) {
     const ni = App.versions.indexOf(n);
     if (ni >= 0) nvs[ni] = s;
   }
+  for (const [i, meta] of Object.entries(App.versionMeta)) {
+    const n = oldVersions[parseInt(i)];
+    if (!n || !meta) continue;
+    const ni = App.versions.indexOf(n);
+    if (ni >= 0) {
+      nvm[ni] = {
+        baseName: meta.baseName || parseVersionDisplayName(n).baseName,
+        suffix: normalizeVersionSuffix(meta.suffix || ''),
+        inheritedFrom: meta.inheritedFrom || '',
+      };
+    }
+  }
   // Collapsed
   const newCollapsed = new Set();
   for (const ci of App.collapsedModules) {
@@ -1232,6 +1333,7 @@ function reindexCells(oldModules, oldVersions) {
   App.moduleParents = np;
   App.moduleStyles = nms;
   App.versionStyles = nvs;
+  App.versionMeta = nvm;
   App.collapsedModules = newCollapsed;
 }
 
@@ -1276,7 +1378,11 @@ function render() {
     const vs = App.versionStyles[vi];
     const style = vs ? `style="color:${vs.color||''};background:${vs.bg||''}"` : '';
     html += `<tr data-vi="${vi}">`;
-    html += `<th class="version-header" data-vi="${vi}" ${style} oncontextmenu="showVersionCtx(event,${vi})" onclick="showVersionDetail(${vi})">${esc(v)}</th>`;
+    const inheritLabel = getVersionInheritanceLabel(vi);
+    html += `<th class="version-header" data-vi="${vi}" ${style} oncontextmenu="showVersionCtx(event,${vi})" onclick="showVersionDetail(${vi})">`;
+    html += `<div class="version-header-main">${esc(v)}</div>`;
+    if (inheritLabel) html += `<div class="version-header-sub">${esc(inheritLabel)}</div>`;
+    html += '</th>';
     displayOrder.forEach(mi => {
       const m = App.modules[mi];
       if (!m) return;
@@ -1858,8 +1964,39 @@ function removeParent(mi) {
   render();
 }
 // ==================== MODAL ====================
-function showModal(title, placeholder, value, callback) {
+function configureModalExtra(options) {
+  modalOptions = options || null;
+  const container = document.getElementById('modalExtraFields');
+  const fields = options?.extraFields || [];
+  if (!fields.length) {
+    container.style.display = 'none';
+    container.innerHTML = '';
+    return;
+  }
+  container.style.display = '';
+  container.innerHTML = fields.map(field => {
+    const value = String(field.value ?? '');
+    if (field.type === 'select') {
+      const optionsHTML = (field.options || []).map(opt =>
+        `<option value="${esc(String(opt.value))}" ${String(opt.value) === value ? 'selected' : ''}>${esc(opt.label)}</option>`
+      ).join('');
+      return `<div class="modal-field"><label class="modal-field-label" for="modal-extra-${esc(field.id)}">${esc(field.label || '')}</label><select class="modal-select" id="modal-extra-${esc(field.id)}">${optionsHTML}</select></div>`;
+    }
+    return `<div class="modal-field"><label class="modal-field-label" for="modal-extra-${esc(field.id)}">${esc(field.label || '')}</label><input class="modal-input" id="modal-extra-${esc(field.id)}" value="${esc(value)}" autocomplete="off"></div>`;
+  }).join('');
+}
+function getModalExtraValues() {
+  const fields = modalOptions?.extraFields || [];
+  if (!fields.length) return null;
+  const values = {};
+  fields.forEach(field => {
+    values[field.id] = document.getElementById(`modal-extra-${field.id}`)?.value ?? '';
+  });
+  return values;
+}
+function showModal(title, placeholder, value, callback, options = null) {
   modalCallback = callback;
+  configureModalExtra(options);
   document.getElementById('modalTitle').textContent = title;
   const input = document.getElementById('modalInput');
   input.placeholder = placeholder || '';
@@ -1870,10 +2007,12 @@ function showModal(title, placeholder, value, callback) {
 function closeModal() {
   document.getElementById('modalOverlay').style.display = 'none';
   modalCallback = null;
+  modalOptions = null;
+  configureModalExtra(null);
 }
 function confirmModal() {
   const val = document.getElementById('modalInput').value;
-  if (modalCallback) modalCallback(val);
+  if (modalCallback) modalCallback(val, getModalExtraValues());
   closeModal();
 }
 document.addEventListener('keydown', (e) => {
@@ -1887,26 +2026,76 @@ document.addEventListener('keydown', (e) => {
 
 // ==================== CRUD: VERSIONS ====================
 function addVersion() {
-  showModal('添加版本', '版本名称 (如 v1.0)', '', (name) => {
-    if (!name.trim()) return;
-    if (App.versions.includes(name.trim())) { alert('版本已存在'); return; }
-    App.versions.push(name.trim());
+  const defaultInheritVi = App.versions.length > 0 ? App.versions.length - 1 : '';
+  const extraFields = [];
+  if (App.versions.length > 0) {
+    extraFields.push({
+      id: 'inheritVersion',
+      type: 'select',
+      label: '继承自版本',
+      value: String(defaultInheritVi),
+      options: App.versions.map((version, vi) => ({ value: String(vi), label: version })),
+    });
+  }
+  extraFields.push({
+    id: 'suffix',
+    type: 'select',
+    label: '版本后缀',
+    value: '',
+    options: [
+      { value: '', label: '无 AB 版本' },
+      { value: '合并', label: '合并版本' },
+      ...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').map(letter => ({ value: letter, label: letter })),
+    ],
+  });
+  showModal('添加版本', '版本号 (如 1.0.1)', '', (name, extraValues) => {
+    const baseName = (name || '').trim();
+    const suffix = normalizeVersionSuffix(extraValues?.suffix || '');
+    const fullVersionName = buildVersionDisplayName(baseName, suffix);
+    if (!baseName) return;
+    if (versionIdentityExists(baseName, suffix)) { alert(`版本 ${fullVersionName} 已存在`); return; }
+    if (App.versions.includes(fullVersionName)) { alert('版本已存在'); return; }
+    App.versions.push(fullVersionName);
     const newVi = App.versions.length - 1;
+    const inheritVi = extraValues?.inheritVersion === undefined || extraValues?.inheritVersion === '' ? -1 : Number(extraValues.inheritVersion);
+    App.versionMeta[newVi] = {
+      baseName,
+      suffix,
+      inheritedFrom: Number.isInteger(inheritVi) && inheritVi >= 0 && inheritVi < newVi ? (App.versions[inheritVi] || '') : '',
+    };
     App.modules.forEach((_, mi) => {
-      if (isModuleActiveBeforeVersion(mi, newVi)) {
+      if (Number.isInteger(inheritVi) && inheritVi >= 0 && inheritVi < newVi) {
+        const inherited = getEffectiveCellState(mi, inheritVi);
+        if (inherited.exists) {
+          delete App.cells[mi + '|' + newVi];
+          App.tags[mi + '|' + newVi] = 'blue';
+        }
+      } else if (isModuleActiveBeforeVersion(mi, newVi)) {
+        delete App.cells[mi + '|' + newVi];
         App.tags[mi + '|' + newVi] = 'blue';
       }
     });
     markDirty();
     render();
-  });
+  }, { extraFields });
 }
 function renameVersion(vi) {
   showModal('重命名版本', '新名称', App.versions[vi], (name) => {
     if (!name.trim() || name.trim() === App.versions[vi]) return;
-    if (App.versions.includes(name.trim())) { alert('版本名称已存在'); return; }
+    const parsed = parseVersionDisplayName(name.trim());
+    if (App.versions.includes(name.trim()) || versionIdentityExists(parsed.baseName, parsed.suffix, vi)) { alert('版本名称已存在'); return; }
     const oldM = [...App.modules], oldV = [...App.versions];
+    const oldName = App.versions[vi];
     App.versions[vi] = name.trim();
+    const currentMeta = getVersionMeta(vi);
+    App.versionMeta[vi] = {
+      baseName: parsed.baseName,
+      suffix: parsed.suffix,
+      inheritedFrom: currentMeta.inheritedFrom || '',
+    };
+    Object.keys(App.versionMeta).forEach(idx => {
+      if (App.versionMeta[idx]?.inheritedFrom === oldName) App.versionMeta[idx].inheritedFrom = name.trim();
+    });
     reindexCells(oldM, oldV);
     markDirty();
     render();
@@ -2003,6 +2192,7 @@ function newProject() {
   App.moduleParents = {};
   App.moduleStyles = {};
   App.versionStyles = {};
+  App.versionMeta = {};
   App.collapsedModules = new Set();
   App.theme = 'light';
   App.versionSort = 'asc';
@@ -2146,15 +2336,19 @@ function newProject() {
   App.moduleParents = {};
   App.moduleStyles = {};
   App.versionStyles = {};
+  App.versionMeta = {};
   App.collapsedModules = new Set();
   App.theme = 'light';
   App.versionSort = 'asc';
   App.fileHandle = null;
   App.projectDirHandle = null;
   App.assetDirName = '';
+  App.selectedCell = null;
+  App.cellClipboard = null;
   App.editingCell = null;
   App.editingDraft = '';
   App.editingTag = '';
+  App.editingTagTouched = false;
   clearDirty();
   applyTheme();
   render();
@@ -2288,6 +2482,45 @@ async function restoreLastOpenedFile() {
     return false;
   }
 }
+function buildVersionBranchStructure() {
+  const childrenMap = {};
+  const roots = [];
+  App.versions.forEach((_, vi) => {
+    const parentVi = getVersionInheritanceSourceIndex(vi);
+    if (parentVi >= 0) {
+      if (!childrenMap[parentVi]) childrenMap[parentVi] = [];
+      childrenMap[parentVi].push(vi);
+    } else {
+      roots.push(vi);
+    }
+  });
+  Object.values(childrenMap).forEach(list => list.sort((a, b) => a - b));
+  return { roots, childrenMap };
+}
+function renderModuleBranchNodeHTML(mi, vi, childrenMap, visited) {
+  if (visited.has(vi)) return '';
+  visited.add(vi);
+  const key = mi + '|' + vi;
+  const tag = App.tags[key] || '';
+  const inheritedLabel = getVersionInheritanceLabel(vi);
+  let html = '<div class="branch-node">';
+  html += '<div class="branch-node-head">';
+  html += `<span class="branch-node-name">${esc(App.versions[vi])}</span>`;
+  if (tag) html += `<span class="detail-card-tag tag-${tag}">${esc(TAG_LABELS[tag])}</span>`;
+  if (inheritedLabel) html += `<span class="branch-node-meta">${esc(inheritedLabel)}</span>`;
+  html += '</div>';
+  const children = (childrenMap[vi] || []).map(childVi => renderModuleBranchNodeHTML(mi, childVi, childrenMap, visited)).join('');
+  if (children) html += `<div class="branch-children">${children}</div>`;
+  html += '</div>';
+  return html;
+}
+function buildModuleBranchTreeHTML(mi) {
+  if (!App.versions.length) return '<div class="branch-empty">暂无版本分支</div>';
+  const { roots, childrenMap } = buildVersionBranchStructure();
+  const visited = new Set();
+  const html = roots.map(vi => renderModuleBranchNodeHTML(mi, vi, childrenMap, visited)).join('');
+  return html || '<div class="branch-empty">暂无版本分支</div>';
+}
 // ==================== DETAIL VIEWS ====================
 function showVersionDetail(vi) {
   const title = App.versions[vi];
@@ -2340,13 +2573,16 @@ function showModuleDetail(mi) {
   getVersionDisplayOrder().forEach(vi => {
     const v = App.versions[vi];
     const key = mi + '|' + vi;
-    const content = App.cells[key] || '';
+    const content = getEffectiveCellState(mi, vi).content || '';
     const tag = App.tags[key] || '';
+    const directContent = App.cells[key] || '';
+    const inheritLabel = tag === 'blue' && !normalizeComparableContent(directContent) ? getVersionInheritanceLabel(vi) : '';
     html += '<div class="detail-card">';
     html += '<div class="detail-card-header">';
     html += `<span class="detail-card-name">${esc(v)}</span>`;
     if (tag) html += `<span class="detail-card-tag tag-${tag}">${esc(TAG_LABELS[tag])}</span>`;
     html += '</div>';
+    if (inheritLabel) html += `<div class="detail-card-inherited">${esc(inheritLabel)}</div>`;
     if (content.trim()) {
       html += `<div class="detail-card-content">${renderDisplayContentHTML(content)}</div>`;
     } else {
@@ -2354,6 +2590,10 @@ function showModuleDetail(mi) {
     }
     html += '</div>';
   });
+  html += '</div>';
+  html += '<div class="detail-section">';
+  html += '<div class="detail-section-title">功能改动分支查看</div>';
+  html += `<div class="branch-tree">${buildModuleBranchTreeHTML(mi)}</div>`;
   html += '</div>';
   // Children sections
   const kids = getChildren(mi);
@@ -2366,13 +2606,16 @@ function showModuleDetail(mi) {
       getVersionDisplayOrder().forEach(vi => {
         const v = App.versions[vi];
         const key = ki + '|' + vi;
-        const content = App.cells[key] || '';
+        const content = getEffectiveCellState(ki, vi).content || '';
         const tag = App.tags[key] || '';
+        const directContent = App.cells[key] || '';
+        const inheritLabel = tag === 'blue' && !normalizeComparableContent(directContent) ? getVersionInheritanceLabel(vi) : '';
         html += '<div class="detail-card child-card">';
         html += '<div class="detail-card-header">';
         html += `<span class="detail-card-name">${esc(v)}</span>`;
         if (tag) html += `<span class="detail-card-tag tag-${tag}">${esc(TAG_LABELS[tag])}</span>`;
         html += '</div>';
+        if (inheritLabel) html += `<div class="detail-card-inherited">${esc(inheritLabel)}</div>`;
         if (content.trim()) {
           html += `<div class="detail-card-content">${renderDisplayContentHTML(content)}</div>`;
         } else {
